@@ -1,6 +1,6 @@
 simsuite_name ="COLIBRE"
 simsuite_short_name ="CLB" 
-sim   = ["L0025N0752"] # L0050N0752, L0050N1504
+sim   = ["L0050N0752"]#L0025N0752"] # , L0050N1504
 subsim = {"L0025N0752":["THERMAL_AGN_m5"],
           "L0050N0752":["THERMAL_AGN_m6"],
          "L0050N1504":["THERMAL_AGN_m5"]}
