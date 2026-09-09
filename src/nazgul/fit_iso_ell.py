@@ -20,7 +20,7 @@ from python_tools.tools import ensure_unit,to_dimless
 
 from nazgul.lib_plot import base_colors
 from nazgul.masking import overplot_mask
-from nazgul.fit_ellipses import get_initial_kwfit
+from nazgul.util_fit_ell import get_initial_kwfit
 
 def rescale_kappa(kappa,sigma_smooth=1.0,thrs_scale=3,add_k=1e-6):
     # smooth it

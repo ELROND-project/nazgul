@@ -9,7 +9,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.pathfinder import std_sim
 from nazgul.mount_doom.cracks_of_doom import LoadLens
-from nazgul.isodens import get_kwisodens,_get_kwiso
+from nazgul.fit_iso_ell import get_kwisodens,_get_kwiso
 
 from python_tools.get_res import load_whatever
 from python_tools.tools import to_dimless
