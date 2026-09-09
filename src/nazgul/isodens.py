@@ -7,6 +7,7 @@ from pathlib import Path
 import astropy.units as u
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from skimage.measure import find_contours
 from scipy.ndimage import gaussian_filter
 from lenstronomy.Data.imaging_data import ImageData
 import lenstronomy.Util.simulation_util as sim_util
@@ -14,8 +15,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from photutils.isophote import Ellipse, EllipseGeometry, build_ellipse_model
 
 from python_tools.get_res import load_whatever
+from python_tools.image_manipulation import mask_out
 from python_tools.tools import ensure_unit,to_dimless
 
+from nazgul.lib_plot import base_colors
+from nazgul.masking import overplot_mask
 from nazgul.fit_ellipses import get_initial_kwfit
 
 def rescale_kappa(kappa,sigma_smooth=1.0,thrs_scale=3,add_k=1e-6):
@@ -27,6 +31,14 @@ def rescale_kappa(kappa,sigma_smooth=1.0,thrs_scale=3,add_k=1e-6):
     # take the log
     kappa_masked_log = np.log10(kappa_masked+add_k)
     return kappa_masked_log
+
+def rescale_pot(potential):
+    # we rescale it in order to have it descending and positive
+    # 1st we make it negative ie "flip it"
+    flip_pot = -potential
+    # 2nd we subtract the minum (ie shift it to be positive)
+    shift_pot = flip_pot - np.min(flip_pot)
+    return shift_pot
 
 def linlaw(x, a, b) :
     return a + x * b
@@ -40,9 +52,20 @@ def get_radius2radecgrid(rad,pixel_num):
     return _radec
 
 def _err_map_type(map_type):
-    raise RuntimeError(f"map_type must be 'kappa' or 'psi', not {map_type}")
+    if map_type not in ["kappa","psi"]:
+        raise RuntimeError(f"map_type must be 'kappa' or 'psi', not {map_type}")
+        
+def get_maxsma(image):
+    image = np.asarray(image)
+    if not np.any(image):
+        raise RuntimeError("Image is only 0.0")
 
-def _get_kwiso(map,optimise_init_prms=True):
+    cx, cy = int(image.shape[0] / 2.), int(image.shape[1] / 2.)
+    rows, cols = np.nonzero(image)          # only the nonzero pixels, not the whole grid
+    max_sma = np.hypot(rows - cx, cols - cy).max()
+    return max_sma
+    
+def _get_kwiso(map,optimise_init_prms=True,verbose=True,fflag=0.7):
     # Force map to be positive
     if np.any(map<0):
         warnings.warn(RuntimeWarning("Found negative values in map - masking them"))
@@ -58,28 +81,42 @@ def _get_kwiso(map,optimise_init_prms=True):
         print("Original rough guesstimate:", map.shape[0]/2., map.shape[1]/2.)
     geom.find_center(map)
     ellipse = Ellipse(map, geometry=geom)
-    isolist = ellipse.fit_image()
+    # since the map might reach a floor of ==0.0, this might trigger a bug
+    # see https://github.com/astropy/photutils/issues/1174
+    # thus we insert a maxsma to avoid this
+    maxsma = get_maxsma(map)
+    #set fflag to 0 to improve fitting for potential (to test!)
+    isolist = ellipse.fit_image(maxsma=maxsma,fflag=fflag)
     if len(isolist.a3)==0:
-        print("DEBUG - no iso-fit successful")
+        print("<<! DEBUG - no iso-fit successful !>>")
         print("map has negative:",np.any(map<0))
         print("map has nan:",np.any(map==np.nan))
-        plt.close()
-        plt.title("Log10(map)")
-        plt.imshow(np.log10(np.abs(map)+1e-12),origin="lower",cmap="hot")
-        plt.colorbar(orientation='vertical',label=r"log$_{10}$(map)")
-        plt.axvline(kw_init_prms["x0"],c="k",label="x-y guestimates")
-        plt.axhline(kw_init_prms["y0"],c="k")
-        plt.legend()
+        print("max sma:",maxsma)
+        mask_sma = mask_out(kw_init_prms["x0"],kw_init_prms["y0"],maxsma,np.ones_like(map))
+        
+        _fig,_ax = plt.subplots()
+        _ax.set_title("Log10(map)")
+        _im0 = _ax.imshow(np.log10(np.abs(map)+1e-12),origin="lower",cmap="hot")
+        _divider = make_axes_locatable(_ax)
+        _cax = _divider.append_axes('right', size='5%', pad=0.05)
+        _fig.colorbar(_im0, cax=_cax, orientation='vertical',label=r"log$_{10}$(map)")
+        _ax.axvline(kw_init_prms["x0"],c="k",label="x-y guestimates")
+        _ax.axhline(kw_init_prms["y0"],c="k")
+        _ax = overplot_mask(_ax,mask_sma)
+        _fig.legend()
         nm = "tmp/map.png"
-        plt.savefig(nm)
-        plt.close()
+        _fig.savefig(nm)
+        plt.close(_fig)
         print(f"DEBUG - Saved {nm}")
-        raise RuntimeError("The isofit has failed")
+        raise RuntimeError("<<! The isofit has failed !>>")
     model = build_ellipse_model(map.shape, isolist)
+    if verbose:
+        print("Isofit succesful")
     return {"isolist":isolist,"geom":geom,"map":map,"model":model}
 
 def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa",
-              _rescale_kappa=True,optimise_init_prms=True):
+              _rescale=True,optimise_init_prms=True,
+              n_level_isocont=10):
     if cutoff_rad is None:
         cutoff_rad = get_iso_cutoff(Lens)
     cutoff_rad = ensure_unit(cutoff_rad,u.kpc)
@@ -94,17 +131,20 @@ def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa",
         cutoff_rad = image_rad
         if map_type =="kappa":
             map  = Lens.kappa_map
-            if _rescale_kappa:
+            if _rescale:
                 map = rescale_kappa(map)
             
         elif map_type =="psi":
-            map    = Lens.psi_map
+            map = Lens.psi_map
+            if _rescale:
+                map = rescale_pot(map)
         else:
             _err_map_type(map_type)
     else:
-        print("Cutoff radius larger than pixel grid")
-        print("cutoff_rad",cutoff_rad)
-        print("image_rad",image_rad)
+        if verbose:
+            print("Cutoff radius larger than pixel grid")
+            print("cutoff_rad",cutoff_rad)
+            print("image_rad",image_rad)
         # if it's larger, we expand the grid to it (giving up resolution in the way)
         _radec = get_radius2radecgrid(cutoff_rad*Lens.arcXkpc,Lens.pixel_num)
         if map_type =="kappa":
@@ -113,24 +153,27 @@ def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa",
                 map = rescale_kappa(map)
 
         elif map_type =="psi":
-            print("Warning - this might take a while")
+            warnings.warn("This might take a while")
             map    = Lens.compute_psi_map(_radec=_radec)
         else:
             _err_map_type(map_type)
-    kw_iso= _get_kwiso(map,optimise_init_prms=optimise_init_prms) 
+    kw_iso= _get_kwiso(map,optimise_init_prms=optimise_init_prms,verbose=verbose) 
     kw_iso["cutoff_rad"] = cutoff_rad
     kw_iso["map_type"] = map_type
+
+    ## add a simple isocontours computation (not a fit!)
+    kw_iso["isoconts"] = get_conts(map,n_levels=n_level_isocont)
     return kw_iso
 
 def get_kwisodens(Lens,cutoff_rad=None,verbose=True):
-    kwiso_kappa = get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa")
+    kwiso_kappa = get_kwiso(Lens,cutoff_rad=None,map_type="kappa",verbose=verbose)
     # renaming for simplicity/monkey-patching
     kwiso_kappa["kappa"] = kwiso_kappa.pop("map")
     del kwiso_kappa["map_type"]
     return kwiso_kappa
 
 def get_kwisopotential(Lens,cutoff_rad=None,verbose=True):
-    kwiso_psi = get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="psi")
+    kwiso_psi = get_kwiso(Lens,cutoff_rad=None,map_type="psi",verbose=verbose)
     # renaming for simplicity/monkey-patching
     kwiso_psi["psi"] = kwiso_psi.pop("map")
     del kwiso_psi["map_type"]
@@ -139,9 +182,9 @@ def get_kwisopotential(Lens,cutoff_rad=None,verbose=True):
 def fit_iso(Lens,cutoff_rad=None,pixel_num=None,verbose=True,map_type="kappa",
             save=True,reload=True): 
     if map_type=="kappa":
-        savename="kw_res_isodens.dll"
+        savename=f"kw_res_isodens_prj{Lens.proj_index}.dll"
     elif map_type=="psi":
-        savename="kw_res_isopsi.dll"
+        savename=f"kw_res_isopsi_prj{Lens.proj_index}.dll"
     else:
         _err_map_type(map_type)
     res_path = f"{Lens.savedir}/{savename}"
@@ -164,7 +207,8 @@ def fit_iso(Lens,cutoff_rad=None,pixel_num=None,verbose=True,map_type="kappa",
 
     kw_iso     = get_kwiso(Lens,cutoff_rad=cutoff_rad,verbose=verbose,map_type=map_type)
     isolist    = kw_iso["isolist"]
-    kpcPix     = cutoff_rad/pixel_num
+    cutoff_rad = kw_iso["cutoff_rad"]
+    kpcPix     = 2*cutoff_rad/pixel_num # 2*rad = Diam /pixel_number of the image
     sma_kpc    = isolist.sma*kpcPix # semi-major axis in kcp
 
     # discard first point
@@ -183,8 +227,8 @@ def fit_isodens(Lens,cutoff_rad=None,pixel_num=None,verbose=True,save=True,reloa
     kw_res = fit_iso(Lens,cutoff_rad=cutoff_rad,pixel_num=pixel_num,verbose=verbose,save=save,reload=reload,
                     map_type="kappa")
     kw_res["isodens"] = kw_res.pop("isofit")
-    kw_res["isofit"]["kappa"] = kw_res["isofit"].pop("map")
-    del kw_res["isofit"]["map_type"]
+    kw_res["isodens"]["kappa"] = kw_res["isodens"].pop("map")
+    del kw_res["isodens"]["map_type"]
     return kw_res
     
 def fit_isopot(Lens,cutoff_rad=None,pixel_num=None,verbose=True,save=True,reload=True):
@@ -195,7 +239,30 @@ def fit_isopot(Lens,cutoff_rad=None,pixel_num=None,verbose=True,save=True,reload
     kw_res["isopot"]["psi"] = kw_res["isopot"].pop("map")
     del kw_res["isopot"]["map_type"]
     return kw_res
+
+def get_conts(image,n_levels=10):
+    conts = []
+    lvls  = []
+    for i in range(n_levels):
+        # uniformily distributed levels
+        lvl = np.min(image) + i*(np.max(image)-np.min(image))/n_levels
+        lvls.append(lvl)
+        conts.append(find_contours(image,level=lvl))
+    kw_cont = {"contours":conts,"levels":lvls}
+    return kw_cont
     
+def plot_conts(fig,conts,colors=base_colors):
+    ax = fig.axes[0]
+    for i,c in enumerate(conts):
+        for j,cc in enumerate(c):
+            if j==0:
+                col = colors[i%len(colors)]
+                ax.plot(*cc.T,ls="--",label=i,c=col)
+            else:
+                ax.plot(*cc.T,ls="--",c=col)
+    fig.legend(loc="lower right")
+    return fig
+
 def plot_isofit(Lens,map_type="kappa",savedir=None,cutoff_rad=None,pixel_num=None,
                 verbose=True,kw_res=None,reload=True):
     if savedir is None:
@@ -249,9 +316,6 @@ def plot_isofit(Lens,map_type="kappa",savedir=None,cutoff_rad=None,pixel_num=Non
         ax.set_xlabel("kpc")
         ax.set_ylabel("kpc")
 
-
-    
-    
     # overplot a few isophotes on the residual map
     isolist = kw_res["isofit"]["isolist"]
     iso1 = isolist.get_closest(10.)
@@ -473,8 +537,6 @@ def plot_isofit(Lens,map_type="kappa",savedir=None,cutoff_rad=None,pixel_num=Non
         plt.savefig(namefig)
         plt.close()
     return kw_res
-
-
     
 def plot_isodens(Lens,savedir=None,cutoff_rad=None,pixel_num=None,verbose=True,kw_res=None,reload=True):
     kw_res = plot_isofit(Lens=Lens,map_type="kappa",savedir=savedir,cutoff_rad=cutoff_rad,pixel_num=pixel_num,
@@ -492,21 +554,21 @@ def plot_isopot(Lens,savedir=None,cutoff_rad=None,pixel_num=None,verbose=True,kw
     del kw_res["isopot"]["map_type"]
     return kw_res
 
-def get_iso_cutoff(Lens,scale_cutoff=2):
-    cutoff_rad = Lens.thetaE*scale_cutoff/Lens.arcXkpc #kpv
-    print("Cutting plot at "+str(np.round(cutoff_rad,3))+", "+str(scale_cutoff)+" times the approx. theta_E")
+def get_iso_cutoff(Lens):
+    cutoff_rad = Lens.radius/Lens.arcXkpc #kpc
+    print("Cutting plot at "+str(np.round(cutoff_rad,3))+", same cutout as the lens image")
     return cutoff_rad
 
 if __name__=="__main__":
+    raise RuntimeError("Outdated")
     from nazgul.mount_doom.cracks_of_doom import LoadLens
-    from nazgul.modelling_wLOS import default_lens_path
     from nazgul.mount_doom.lens_system import LensSystem
+    from nazgul.modelling_wLOS import default_lens_path as lens_path
 
     # for now applied to a "known" lens galaxy
     gal_lens = LoadLens(lens_path)
     Lens = LensSystem.from_GalLens(gal_lens)
     savedir = Path("tmp/")
-    scale_cutoff = 3
-    cutoff_rad = get_iso_cutoff(Lens,scale_cutoff)
+    cutoff_rad = get_iso_cutoff(Lens)
     kw_res = plot_isodens(Lens,savedir,cutoff_rad=cutoff_rad,reload=False)
     kw_res = plot_isopot(Lens,savedir,cutoff_rad=cutoff_rad,reload=False)
