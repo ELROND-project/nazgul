@@ -14,17 +14,13 @@ import astropy.constants as const
 
 from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,ensure_unit
-from nazgul.project_gal import project_kw_parts,dens_map_AMR,cells2SigRad,ProjGal
+from nazgul.project_gal import project_kw_parts,dens_map_AMR,cells2SigEnclRad,cells2MRad,ProjGal
 
 from nazgul.lib_cosmo import SigCrit
+from nazgul.lib_plot import base_colors
 from nazgul.AMR2D_PLL import plot_AMR_cells
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Translator.translator import PartGal,Gal2kwMXYZ,Gal2kwMXYZ_part,get_sim_func
-
-# these should be in a more general script
-base_colors = ["red","green","blue","yellow","dark","magenta","cyan",
-               "darkorange","darkviolet","lawngreen","violet"] 
-
 
 def get_kw_extents_RE(Gal,RE,tE,scale_tE_cutout=10):
     cutout_arcs = tE*scale_tE_cutout
@@ -40,15 +36,78 @@ default_kw_densmap={"max_particles":100,
                     "dens_thresh": 0.*u.Msun/(u.kpc**2),
                     "clip":True}
 
+def _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=True):
+    r_all,Sigma_encl_all   = cells2SigEnclRad(kw_2Ddens_all)
+    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma_encl_all,Sigma_encl_all,Sigma_crit,plot_figall)
+    kw_1D_dens["Sigma_encl_all"] = Sigma_encl_all # Msun/kpc^2
+    return kw_1D_dens
+
+def _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=True):
+    r_all,M_all,area_all   = cells2MRad(kw_2Ddens_all)
+    Sigma_all = M_all/area_all
+    
+    # still need to compute this for the theta_E
+    # Cumulative sum
+    cumulative_mass = np.cumsum(M_all)
+    cumulative_area = np.cumsum(area_all)
+    
+    # Compute enclosed density Sigma(<r)
+    Sigma_encl_all = cumulative_mass/cumulative_area
+
+    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma_all,Sigma_encl_all,Sigma_crit,plot_figall)
+    kw_1D_dens["Sigma_all"] = Sigma_all # Msun/kpc^2
+    return kw_1D_dens
+
+def _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma,Sigma_encl,plot_figall=True):
+    r_all = r.to("kpc")
+    
+    Sigma = Sigma.to("Msun/kpc^2")
+    Sigma_crit     = ensure_unit(Sigma_crit,Sigma.unit)
+    
+    kw_1D_dens["r_all"] = r #kpc
+    Sigma_crit = kw_1D_dens["Sigma_crit"] # Msun/kpc^2
+    
+    MD_coord_all = copy.copy(kw_2Ddens_all["MD_coords"])
+    kw_1D_dens["MD_coords_all"] = MD_coord_all #
+    
+    RE         = np.interp(Sigma_crit.value, 
+                           Sigma_encl.value[::-1], 
+                           r[::-1].value)*r.unit # kpc
+    arcXkpc    = Gal.cosmo.arcsec_per_kpc_proper(Gal.z).to("arcsec/kpc") # arcsec/kpc
+    tE         = RE*arcXkpc # arcsec
+    kw_extents = get_kw_extents_RE(Gal,RE,tE,scale_tE_cutout)
+    
+    kw_1D_dens["tE"]         = tE
+    kw_1D_dens["arcXkpc"]    = arcXkpc
+    kw_1D_dens["kw_extents"] = kw_extents
+    
+        
+    if plot_figall:
+        savedir = get_savedir_plots(Gal,savedir=savedir)
+        figall,axall = plot_AMR_cells(kw_2Ddens_all,kw_extents=kw_extents)        
+        figall.suptitle("AMR of total mass projection")
+        nm_AMR = f"{savedir}/AMR_full_proj{proj_index}.png"
+        figall.savefig(nm_AMR)
+        print(f"Saved {nm_AMR}") 
+        plt.close(figall)
+    # free memory
+    del kw_2Ddens_all
+    return kw_1D_dens
+    
 def get_kw_1D_density(Gal,
                       proj_index = 0,
                       scale_tE_cutout = 10,
+                      enclosed=True,
                       reload=True,
                       kw_densmap = default_kw_densmap,
                       savedir=None,
                       plot_figall=True):
     PrjGal = ProjGal(Gal,proj_index)
-    nm_kw_1D_dens = PrjGal.proj_dir/f"kw_1D_dens_{proj_index}.dll"
+    if enclosed:
+        nm_kw_1D_dens = PrjGal.proj_dir/f"kw_1D_dens_{proj_index}.dll"
+    else:
+        nm_kw_1D_dens = PrjGal.proj_dir/f"kw_1D_dens_{proj_index}_not_enclosed.dll"
+
     try:
         assert reload
         kw_1D_dens = load_whatever(nm_kw_1D_dens)
@@ -71,42 +130,12 @@ def get_kw_1D_density(Gal,
             
         # free memory
         del kw_parts_all,kw_parts_all_proj
-        r_all,Sigma_encl_all   = cells2SigRad(kw_2Ddens_all)
-        r_all = r_all.to("kpc")
+        kw_1D_dens["Sigma_crit"] = Sigma_crit
+        if enclosed:
+            kw_1D_dens = _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=plot_figall)
+        else:
+            kw_1D_dens = _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=plot_figall)
     
-        Sigma_encl_all = Sigma_encl_all.to("Msun/kpc^2")
-        Sigma_crit     = ensure_unit(Sigma_crit,Sigma_encl_all.unit)
-    
-        kw_1D_dens["r_all"] = r_all #kpc
-        kw_1D_dens["Sigma_crit"] = Sigma_crit # Msun/kpc^2
-        kw_1D_dens["Sigma_encl_all"] = Sigma_encl_all # Msun/kpc^2
-    
-        MD_coord_all = copy.copy(kw_2Ddens_all["MD_coords"])
-        kw_1D_dens["MD_coords_all"] = MD_coord_all #
-    
-        RE         = np.interp(Sigma_crit.value, 
-                               Sigma_encl_all.value[::-1], 
-                               r_all[::-1].value)*r_all.unit # kpc
-        arcXkpc    = Gal.cosmo.arcsec_per_kpc_proper(Gal.z).to("arcsec/kpc") # arcsec/kpc
-        tE         = RE*arcXkpc # arcsec
-        kw_extents = get_kw_extents_RE(Gal,RE,tE,scale_tE_cutout)
-    
-        kw_1D_dens["tE"]         = tE
-        kw_1D_dens["arcXkpc"]    = arcXkpc
-        kw_1D_dens["kw_extents"] = kw_extents
-
-            
-        if plot_figall:
-            savedir = get_savedir_plots(Gal,savedir=savedir)
-            figall,axall = plot_AMR_cells(kw_2Ddens_all,kw_extents=kw_extents)        
-            figall.suptitle("AMR of total mass projection")
-            nm_AMR = f"{savedir}/AMR_full_proj{proj_index}.png"
-            figall.savefig(nm_AMR)
-            print(f"Saved {nm_AMR}") 
-            plt.close(figall)
-        # free memory
-        del kw_2Ddens_all
-
     with open(nm_kw_1D_dens,"wb") as f:
         dill.dump(kw_1D_dens,f)
     print(f"Saved {nm_kw_1D_dens}")
@@ -146,7 +175,7 @@ def plot_AMR_densityXpart(Gal,
                      savedir       = None,
                      part_thresh   = 1e4, # min n* of particles to be plotted
                      rerun         = False,
-                     verbose=True):
+                     verbose       = True):
     """ 
     Compute and plot density Adaptive Mesh Refinement map split into the various particles
     """
@@ -169,6 +198,7 @@ def plot_AMR_densityXpart(Gal,
                                        kw_densmap=kw_densmap,
                                        reload=True,
                                        savedir=savedir,
+                                       enclosed=True,
                                        plot_figall=True)
     
     tE             = kw_1D_dens["tE"]
@@ -219,7 +249,7 @@ def plot_AMR_densityXpart(Gal,
         print(f"Saved {nm_amr_dec}") 
 
         # plot 1D Sigma
-        r,Sigma_encl   = cells2SigRad(kw_2D_dens)
+        r,Sigma_encl   = cells2SigEnclRad(kw_2D_dens)
         # free memory
         del kw_2D_dens
         
