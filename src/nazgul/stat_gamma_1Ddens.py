@@ -13,10 +13,11 @@ from scipy.optimize import curve_fit
 from chainconsumer import Chain, ChainConsumer
 
 from python_tools.get_res import load_whatever
+from nazgul.lib_plot import warm_colors as warm
 from nazgul.mount_doom.lens_system import LensSystem
-from plot_AMRxpart import get_kw_1D_density,get_savedir_plots
+from nazgul.plot_AMRxpart import get_kw_1D_density,get_savedir_plots
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
-from nazgul.combined_modelling_results import get_full_chain
+from nazgul.combined_modelling_results import get_full_chain,get_res_dir,get_model_from_res_dir
 # we select lenses the same way we select them for modelling:
 from nazgul.Modelling.lib_models import get_lenses2model,get_model_res_dir
 # thus we need to define which model to consider
@@ -30,6 +31,11 @@ def rho_cored(r,rho0,r_core,gamma):
     rho = rho0/(r**2+  r_core**2)**(gamma)
     return rho
 
+def rho_cored_smooth(r,rho0,r_core,gamma,alpha):
+    # following Pierre's function (eq. to mine if alpha==2 and scaling appropriately gamma and rho0)
+    rho = rho0 * (1 + (r/r_core)**alpha)**((3-gamma)/alpha)
+    return rho
+    
 def log_rho_cored(log_r,log_rho0,log_r_core,gamma):
     r      = 10**log_r
     r_core = 10**log_r_core
@@ -39,17 +45,6 @@ def log_rho_cored(log_r,log_rho0,log_r_core,gamma):
 
 # to consider if not using the fit log_rho_cored
 
-# should have a better setup for coloring and plots
-matplotlib.use('Agg') 
-warm         = ['#fdcc8a', '#fc8d59', '#d7301f']
-
-def get_res_dir(lens_model):
-    warnings.warn(f"Using lens model: {lens_model}")
-    module_path = f"nazgul.Modelling.model_{lens_model}"
-    model_module = import_module(module_path)
-    res_dir = getattr(model_module,"res_dir_base")
-    return res_dir    
-
 std_kw_get_all_gallens = {"sim":std_sim,
                           "subsim":std_subsim,
                           "simsuite":std_simsuite,
@@ -58,7 +53,7 @@ std_kw_get_all_gallens = {"sim":std_sim,
 r_lbl = r"log$_{10}$r [kpc]"
 sig_lbl = r"log$_{10}\Sigma$ [10$^9$ M$_{\odot}$/kpc]"
 
-def get_core_gamma_1gal(gal_lens,single_plot=True):
+def get_core_gamma_1gal(gal_lens,res_dir,single_plot=True,smooth=False):
     print("\nLoading gal lens "+gal_lens.name)
     gal_lens.unpack()
     kw_1d = get_kw_1D_density(gal_lens.Gal,gal_lens.proj_index)
@@ -66,8 +61,11 @@ def get_core_gamma_1gal(gal_lens,single_plot=True):
     r = kw_1d["r_all"].value #kpc
     Sigma = kw_1d["Sigma_encl_all"].value
     Sigma_scaled = Sigma/1e9 # 1e9 SolMass/kpc
-            
-    fit_prm,fit_cov = curve_fit(rho_cored,r,Sigma_scaled)
+    if not smooth:
+        fit_prm,fit_cov = curve_fit(rho_cored,r,Sigma_scaled)
+    else:
+        print("Fitting for smoothed power law")
+        fit_prm,fit_cov = curve_fit(rho_cored_smooth,r,Sigma_scaled)
     rho0    = fit_prm[0]
     core    = fit_prm[1]
     gamma   = fit_prm[2]
@@ -97,6 +95,7 @@ def get_core_gamma_1gal(gal_lens,single_plot=True):
     lens = LensSystem.from_GalLens(gal_lens)
     gal_lens.model_res_dir = get_model_res_dir(lens,res_dir=res_dir)
     try:
+        lens_model = get_model_from_res_dir(res_dir)
         full_chain = get_full_chain(gal_lens,model=lens_model)
         gamma_lns = full_chain["gamma_lens0"].to_numpy() 
         gamma_med,gamma_std = np.median(gamma_lns),np.std(gamma_lns)
@@ -122,7 +121,17 @@ def get_core_gamma(reload=True,
         try:
             kw_core_gamma = load_whatever(nm_kw_core_gamma)
             print(f"Loaded {nm_kw_core_gamma}") 
-            return kw_core_gamma
+            kw_get_all_gallens_old = kw_core_gamma.get("kw_get_all_gallens",None)
+            if kw_get_all_gallens_old is None:
+                warnings.warn("MONKEY PATCH- update kw_get_all_gallens with kw_core_gamma")
+                kw_core_gamma["kw_get_all_gallens"] = kw_get_all_gallens
+                with open(nm_kw_core_gamma,"wb") as f:
+                    dill.dump(kw_core_gamma,f)
+            if kw_get_all_gallens == kw_get_all_gallens_old:
+                return kw_core_gamma
+            else:
+                print(f"File {nm_kw_core_gamma} does not match the lenses - recomputing")
+                raise FileNotFoundError
         except FileNotFoundError:
             print("Tried and failed to load previous result. Recomputing")
 
@@ -130,6 +139,7 @@ def get_core_gamma(reload=True,
                                    reload=True,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip,
+                                   n_lenses=np.nan, #select all of the them
                                    kw_get_all_gallens=kw_get_all_gallens)
     gammas,cores = [],[]
     gamma_lenses   = []
@@ -138,10 +148,11 @@ def get_core_gamma(reload=True,
     ax_overlap.set_xlabel(r_lbl)
     ax_overlap.set_ylabel(sig_lbl)
     ax_overlap.set_title("Overlap of scaled 1D density profiles")
-    
+
+    lenses_names = []
     for i,gal_lens in enumerate(gal_lenses): 
         
-        gamma,core,gamma_lens,log_r_scaled,log_Sig_scaled = get_core_gamma_1gal(gal_lens,
+        gamma,core,gamma_lens,log_r_scaled,log_Sig_scaled = get_core_gamma_1gal(gal_lens,res_dir=res_dir,
                                                                   single_plot=single_plot)
 
         _lbl = None
@@ -154,6 +165,7 @@ def get_core_gamma(reload=True,
         cores.append(core)
         gammas.append(gamma)
         gamma_lenses.append(gamma_lens)
+        lenses_names.append(gal_lens.name)
         
     fig_overlap.savefig(nm_fig_overap)
     print(f"Saving {nm_fig_overap}")
@@ -164,7 +176,9 @@ def get_core_gamma(reload=True,
     gamma_lenses = np.array(gamma_lenses).T # [0] =<gamma>, [1] = std(gamma)
     kw_core_gamma = {"gammas":gammas,
                      "cores":cores,
-                     "gamma_lenses":gamma_lenses}
+                     "gamma_lenses":gamma_lenses,
+                     "lenses_names":lenses_names,
+                     "kw_get_all_gallens":kw_get_all_gallens}
 
     with open(nm_kw_core_gamma,"wb") as f:
         dill.dump(kw_core_gamma,f)
