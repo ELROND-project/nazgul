@@ -16,6 +16,7 @@ from scipy.spatial import Delaunay
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import RectBivariateSpline,griddata
 
+import astropy.units as u
 from astropy.stats import sigma_clip
 
 from lenstronomy.Util import util
@@ -25,7 +26,7 @@ from lenstronomy.LensModel.lens_model import LensModel
 from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 
 # My libs
-from python_tools.tools import to_dimless,mkdir,to_uid
+from python_tools.tools import to_dimless,mkdir,to_uid,silencer
 import nazgul.mount_doom.cracks_of_doom as cod
 from nazgul.project_gal import get_2Dkappa_map
 # Class structure
@@ -138,8 +139,9 @@ class LensSystem(BasicGal):
     def ReadClass(self,cl,verbose=True):
         LS = LoadLens(cl.pkl_path,verbose=verbose)
         return LS
-        
-    def _unpack(self):
+    
+    @silencer
+    def _unpack(self,verbose=True):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """
@@ -651,6 +653,10 @@ class LensSystem(BasicGal):
                  kwargs_single_band = kwargs_single_band, # telescope specific keyword arguments (eg HST, see above)
                  kwargs_model = kwargs_model,# kwargs source model (in principle kw lens as well)
                 )
+        #Sim.arcXkpc = self.gallens.arcXkpc
+        def _map_coord2pix(coord1,coord2):
+            return map_coord2pix(Sim.data_class,coord1,coord2,self.gallens.arcXkpc)
+        setattr(Sim, 'map_coord2pix', _map_coord2pix)
         return Sim
 
     def sim_image(self,SimObs,kwargs_source=None,noisy=False,rnd_seed=None):
@@ -815,3 +821,20 @@ def interpolate_map(map,coord,coord_out):
     if len(np.shape(coord_out))==2:
         map_out = array2image(map_out)
     return map_out
+
+# add a map coordinate to pixel that can take either kpc or arcsec
+# add to Sim, as this is the one we are interested on
+def map_coord2pix(data_class,coord1,coord2,arcXkpc):
+    print("to test this conversion")
+    if type(coord1)==u.quantity.Quantity:
+        assert type(arcXkpc)==u.quantity.Quantity
+        assert coord1.unit == coord2.unit
+        if coord1.unit == u.kpc:
+            coord1 = coord1*arcXkpc
+            coord2 = coord2*arcXkpc
+            coord1 = coord1*arcXkpc
+        elif coord1.unit!=u.arcsec:
+            raise ValueError(f"Only accepeted units are kpc or arcsec, not {coord1.unit}")
+        coord1 = coord1.value
+        coord2 = coord2.value    
+    return data_class.map_coord2pix(coord1,coord2)
