@@ -26,6 +26,8 @@ from nazgul.plot_PL import plot_kappamap
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.pathfinder import get_sim_dir,tmp_dir
+from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std,get_res_dir # default values
+
 #default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_023/Gn7SGn0/Sub/Sub_Gn7SGn0_Npix200_PartAS_Prj0.pkl"
 #default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3SGn0_Npix200_PartAS_Prj1.pkl"
 
@@ -186,14 +188,6 @@ def get_kwargs_params(lens):
     kwargs_params = {'lens_model': lens_params,
                     'source_model': source_params}
     return kwargs_params
-
-
-#PSO
-n_it_std   = 2000
-n_part_std = 300
-#MCMC
-n_burn_std = 200
-n_run_std  = 1000
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate and model the lens")

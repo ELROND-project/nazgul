@@ -27,6 +27,7 @@ from nazgul.stat_lenses import get_all_gallens
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.pathfinder import get_sim_dir,tmp_dir
+from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std,get_res_dir # default values
 
 lens_model_list   = ['EPL',"LOS_MINIMAL"]
 source_model_list = ["SERSIC"]
@@ -236,13 +237,6 @@ def get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=5,skip_lenses=[]
                 print(f"Ignoring lens {l} because in the list of lenses to skip")
         lenses_selected = lenses_accepted
     return lenses_selected
-
-#PSO
-n_it_std   = 2000
-n_part_std = 500
-#MCMC
-n_burn_std = 1000
-n_run_std  = 10000
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate and model the lens")
