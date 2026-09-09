@@ -60,9 +60,9 @@ def get_rnd_kw_gal(simsuite=std_simsuite,sim=std_sim,subsim=None,
                                 min_mass=min_mass,max_z=max_z,min_z=min_z)
     return kw
 
-def get_z_snap(simsuite,z=None,snap=None):
+def get_z_snap(simsuite,z=None,snap=None,*args,**kwargs):
     get_z_snap = get_sim_func(simsuite,"get_z_snap")
-    return get_z_snap(z=z,snap=snap)
+    return get_z_snap(z=z,snap=snap,*args,**kwargs)
 
 def Gal2MXYZ(Gal):
     print("Running Gal2MXYZ...")

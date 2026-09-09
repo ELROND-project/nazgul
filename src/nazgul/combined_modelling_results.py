@@ -11,8 +11,10 @@ from glob import glob
 from pathlib import Path
 from textwrap import wrap
 from copy import copy,deepcopy
-import matplotlib.pyplot as plt
+from importlib import import_module
+
 import matplotlib
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -27,10 +29,10 @@ from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.mount_doom.cracks_of_doom import LoadLens
-from nazgul.Translator import std_sim,std_simsuite,std_subsim
+from nazgul.Translator import std_sim,std_simsuite,std_subsim,get_simsuite_from_code
 # debugging memory leak tools 
 from python_tools.memory_leak_tools import log_memory,log_top_allocs
-from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot
+from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot,model_res_base
 
 matplotlib.use('Agg') 
 
@@ -604,35 +606,53 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
     
 warnings.filterwarnings("ignore")
 
-name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmgaLos","simNoShear","SNS_multipole","SNS_m134_gausstE"]
-def get_res_dir(model,simsuite=std_simsuite,sim=std_sim,subsim=std_subsim):
-    if model=="noLOS":
-        from nazgul.Modelling.model_ext_shear import get_res_dir,res_dir_base
-    elif model=="noLOS_g12":
-        from nazgul.Modelling.model_ext_shear_g12 import get_res_dir,res_dir_base
-    elif model=="fitLOS":
-        from nazgul.Modelling.model_fitLOS import get_res_dir,res_dir_base
-    elif model=="allLOS":
-        from nazgul.Modelling.model_allLOS import get_res_dir,res_dir_base
-    elif model=="fitLOS_fixedOD":
-        from nazgul.Modelling.model_fitLOS_fixedOD import get_res_dir,res_dir_base
-    elif model=="fitLOS_fixedOD_fixedOmgaLos":
-        from nazgul.Modelling.model_fitLOS_fixedOD_fixedOmegaLos import get_res_dir,res_dir_base
-    elif model=="simNoShear":
-        from nazgul.Modelling.model_simNoShear import get_res_dir,res_dir_base
-    elif model=="simNoShear_gausstE":
-        from nazgul.Modelling.model_simNoShear_gausstE import get_res_dir,res_dir_base
-    elif model=="SNS_multipole":
-        from nazgul.Modelling.model_SNS_multipole import get_res_dir,res_dir_base
-    elif model=="SNS_m134_gausstE":
-        from nazgul.Modelling.model_SNS_m134_gausstE import get_res_dir,res_dir_base
+name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE"]
+
+kw_names_models = {}
+for nm in name_models:
+    if nm=="noLOS":
+        kw_names_models[nm] = "model_ext_shear"
+    elif nm=="noLOS_g12":
+        kw_names_models[nm] = "model_ext_shear_g12"
     else:
+        kw_names_models[nm] = f"model_{nm}"
+kw_models_names =  {v: k for k, v in kw_names_models.items()}
+
+
+def get_res_dir(model,simsuite=std_simsuite,sim=std_sim,subsim=std_subsim):
+    model_name = kw_names_models[model]
+    try:
+        model_module = import_module(f'.{model_name}',"nazgul.Modelling")
+        get_res_dir = model_module.get_res_dir
+        res_dir_base = model_module.res_dir_base
+    except:
         if model in name_models:
-            print("To implement") 
+            print(f"{model} to implement") 
         raise RuntimeError(f"model {model} not known")
     res_dir = get_res_dir(res_dir_base,simsuite,sim,subsim=subsim,run_type=0)
-    return res_dir
+    return res_dir 
 
+
+def get_model_from_res_dir(res_dir,model_res=model_res_base):
+    model_subpath = str(Path(model_res).name)+"/" #"models/" by def.
+    _sub_res_dir = str(res_dir).split(model_subpath)[1]
+    _model_name  = _sub_res_dir.split("/")[0]
+    model_name   = kw_models_names["model_"+_model_name] 
+    #verify
+    _sub_res_dir_split = Path(_sub_res_dir.split("/")[1]).parts[0]
+    simsuite_code =  _sub_res_dir_split.split("_")[0]
+    simsuite = get_simsuite_from_code(simsuite_code)
+    sim_subsim = "_".join(_sub_res_dir_split.split("_")[1:])
+    res_dir_recovered = get_res_dir(model_name,simsuite=simsuite,sim=sim_subsim,
+                subsim=None)
+    res_dir = str(res_dir)
+    res_dir_recovered = str(res_dir_recovered)
+    if len(res_dir)>len(res_dir_recovered):
+        assert res_dir_recovered in res_dir
+    else:
+        assert res_dir in res_dir_recovered
+    return model_name
+    
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot Combined results for all the lens model of given run")
     parser.add_argument('-m','--model',type=str,
