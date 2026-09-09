@@ -105,6 +105,14 @@ def get_lens_model_AS(theta_cAS,thetaEs,samples,kw_add_lenses=None):
     lens_model_AS   = LensModel(lens_model_list=lens_model_list)
     return kwargs_lens_AS,lens_model_AS
 
+def adaptive_tcAS(thetaEs,samples):
+    raise RuntimeError("Pragma: no cover, still to develop")
+    
+def get_lens_model_AS_adaptive(thetaEs,samples,kw_add_lenses=None):
+    # adapt theta_cAS to the density of particles
+    theta_cASs = adaptive_tcAS(thetaEs,sample)
+    return get_lens_model_AS(thetaEs,theta_cASs,samples,kw_add_lenses=kw_add_lenses)
+
 """
 class Prof2LensModel():
     raise RuntimeError("Not used")
