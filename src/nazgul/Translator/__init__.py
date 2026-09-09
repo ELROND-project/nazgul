@@ -1,4 +1,3 @@
-
 import os
 import warnings
 import importlib
@@ -44,3 +43,16 @@ tutorial_sim  = sims["EAGLE"][2]
 min_z        = conf.min_z
 max_z        = conf.max_z
 min_mass     = conf.min_mass
+
+def get_simsuite_code(simsuite):
+    simsuite_module = importlib.import_module(f'.{simsuite}',"nazgul.Translator")
+    simsuite_code = simsuite_module.simsuite_short_name
+    return simsuite_code
+
+def get_simsuite_from_code(simsuite_code):
+    # opposite of get_simsuite_code
+    simsuites = list(sims.keys())
+    for ss in simsuites:
+        if simsuite_code==get_simsuite_code(ss):
+            return ss
+    raise RuntimeError(f"Could not find sim. suite corresponding to code {simsuite_code}")
