@@ -23,7 +23,7 @@ from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless,dict_equal
 
 from nazgul.plot_PL import plot_all
-from nazgul.Translator import std_sim,std_simsuite,std_subsim
+from nazgul.Translator import get_simsuite_code,get_simsuite_from_code,std_sim,std_simsuite,std_subsim
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
 from nazgul.mount_doom.lens_system import LensSystem
@@ -49,7 +49,7 @@ n_run_std  = 7000
 
 def get_res_dir(res_dir_base,simsuite,sim,subsim=None,run_type=0):
     res_dir = Path(res_dir_base)
-    simsuite_code = _get_simsuite_code(simsuite)
+    simsuite_code = get_simsuite_code(simsuite)
     sim_dir = _get_sim_dir_name(simsuite_code=simsuite_code,
                             sim=sim,subsim=subsim)
     res_dir = res_dir/sim_dir
@@ -57,11 +57,7 @@ def get_res_dir(res_dir_base,simsuite,sim,subsim=None,run_type=0):
         res_dir = res_dir/"test"
     mkdir(res_dir)
     return res_dir
- 
-def _get_simsuite_code(simsuite):
-    simsuite_module = importlib.import_module(f'.{simsuite}',"nazgul.Translator")
-    simsuite_code = simsuite_module.simsuite_short_name
-    return simsuite_code
+    
 def _get_sim_dir_name(simsuite_code,sim,subsim=None):
     sim_dir = f"{simsuite_code}_{sim}"
     if subsim:
@@ -75,7 +71,7 @@ def _get_sim_dir(gal,simsuite_code=None):
         except AttributeError:
             # MONKEY PATCH
             simsuite = gal.simsuite
-            simsuite_code = _get_simsuite_code(simsuite)
+            simsuite_code = get_simsuite_code(simsuite)
     sim    = str(gal.sim)
     subsim = getattr(gal,"subsim",False)
     sim_dir = _get_sim_dir_name(simsuite_code=simsuite_code,
@@ -114,7 +110,7 @@ def setup_lens(lens,res_dir,kwargs_source=None,
         if Path(f"{lens.model_res_dir}/kw_res.dll").is_file():
             warnings.warn(f"This lens, {lens.name} has already results, and I should not overwrite them. If that's not what you want, set overwrite=True") 
             return None
-
+            
     lens.setup()
     # Note: the following is only used for plotting
     # and mask definition (to find the bright center of the image)
@@ -133,12 +129,11 @@ def setup_lens(lens,res_dir,kwargs_source=None,
     lens.z_source = lens.gallens.z_source
     lens.deltaPix = lens.gallens.deltaPix
     lens.pixel_num = lens.gallens.pixel_num
-
     
     #lens.kwargs_lens = lens.gallens.kwargs_lens
     if _plot:
         plot_all(lens,skip_caustic=True)
-
+        
     # create link to lens
     src = lens.gallens.pkl_path
     dst = get_link_lens_path(lens,res_dir=res_dir)
@@ -147,7 +142,16 @@ def setup_lens(lens,res_dir,kwargs_source=None,
             os.symlink(src,dst)
         except FileExistsError as e:
             print(f"This error \n{e}\n should not happen, but it's not too important")
-            
+    """
+    # not useful at the moment - possibly in the future
+    # store the kwargs_lenssystem
+    kwargs_lenssystem = lens._kwargs_lenssystem
+    pth_kw_lnsstm     = str(res_dir)+"/kw_lenssystem.dll"
+    with open(pth_kw_lnsstm,"wb") as f:
+        dill.dump(kwargs_lenssystem,f)
+    if verbose:
+        print(f"Stored {pth_kw_lnsstm}")
+    """
     return lens
 
 
@@ -380,8 +384,8 @@ def get_kwargs_params_def(lens):
                     'source_model': source_params}
     return kwargs_params
 
-def _get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE=None,skip_lenses=[]):
-    precomputed_lenses =  np.array(get_all_gallens(**kw_get_all_gallens))
+def _get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE=None,skip_lenses=[],verbose=True):
+    precomputed_lenses =  np.array(get_all_gallens(verbose=verbose,**kw_get_all_gallens))
     if min_thetaE is None and n_lenses is None:
         n_lenses = 5
         print(f"No boundary given - assuming n_lenses={n_lenses} - If you really want all the lenses, give n_lenses=np.nan")
@@ -416,7 +420,7 @@ def _get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE
         raise RuntimeError("The boundary given are too strict - no galaxy satisfy it")
     return lenses_selected
 
-def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
+def get_lenses2model(res_dir,reload=True,verbose=True,**kw_get_lenses2model):
     cat_l2m = Path(res_dir)/"cat_lens2model.dll"
     update_cat  = True
     recompute   = False
@@ -442,7 +446,7 @@ def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
 
     if recompute:
         update_cat = True
-        lenses = _get_lenses2model(**kw_get_lenses2model)
+        lenses = _get_lenses2model(verbose=verbose, **kw_get_lenses2model)
         
     if update_cat:
         lenses_cat = [l.pkl_path for l in lenses]
@@ -474,7 +478,7 @@ def get_model_plot(res_dir,
     if multi_band_list_out is None:
         multi_band_list_out = load_mblo(res_dir)
     if kw_input  is None:
-        kw_input = load_kw_input(res_dir)
+        kw_input = load_kwargs_input(res_dir)
     if kwargs_result is None:
         kwargs_result = load_kwargs_result(res_dir)
     kwargs_model      = kw_input["kwargs_model"]
@@ -488,10 +492,6 @@ def load_mblo(res_dir):
     nm_mblo = f"{res_dir}/multi_band_list_out.dll"
     multi_band_list_out = load_whatever(nm_mblo)
     return multi_band_list_out
-def load_kw_input(res_dir):
-    nm_input = f"{res_dir}/kw_input.dll"
-    kw_input = load_whatever(nm_input)
-    return kw_input
     
 def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir,plot_point_sources=False):
     modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
@@ -580,7 +580,19 @@ def get_red_chi2(modelPlot,verbose=True):
         print("################################\n")
     return reduced_chi2
 
+"""
+# Wrong idea - kwargs_lenssystem will in principle be different for each lens
+class LensSystemFactory:
+    def __init__(self, res_dir,**kwargs_lenssystem):
+        path_kw_lnss = str(res_dir)+"/kwargs_lenssystem.dll"
+        with open(path_kw_lnss,"wb") as f:
+            dill.dump(kwargs_lenssystem,f)
+        print(f"Stored {path_kw_lnss}")
+        self._kwargs = kwargs_lenssystem
 
+    def from_GalLens(self, GalLens, **override):
+        return LensSystem.from_GalLens(GalLens, **{**self._kwargs, **override})
+"""
 if __name__=="__main__":
     raise RuntimeError("Do not run this - kept only as a reference")
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate and model the lens")
