@@ -1,5 +1,6 @@
 # Analytical Test - to verify the pipeline
 simsuite_name = "ANL_TEST"
+simsuite_short_name ="ANLT"
 
 # Available simulations:
 sim     = ["SIS","SIE"]
