@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from python_tools.get_res import LoadClass
-from python_tools.tools import to_uid,to_uid_base64
+from python_tools.tools import to_uid,to_uid_base64,silencer
 
 def store_class(ist_class,path=None,overwrite=True,update=True,LoadClass=LoadClass):
     """If overwrite=True or not present
@@ -90,15 +90,15 @@ class BasicGal:
             hasattr(self, attr)
             for attr in self._large_attributes_unpack
         )
-        
-    def unpack(self):
+    @silencer
+    def unpack(self,verbose=True):
         """Public wrapper for lazy reconstruction.
         """
         if self._needs_unpacking():
-            self._unpack()
+            self._unpack(verbose=verbose)
         return self
 
-    def _unpack(self):
+    def _unpack(self,verbose=True):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """

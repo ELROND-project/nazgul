@@ -17,7 +17,7 @@ from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.combined_modelling_results import get_full_chain,get_res_dir,name_models
 
 from nazgul.Modelling.lib_models import model_res_base,save_data,get_model_res_dir,get_red_chi2
-from nazgul.Modelling.lib_models import load_kwargs_result,load_mblo,load_kw_input,get_model_plot
+from nazgul.Modelling.lib_models import load_kwargs_result,get_model_plot
 
 def get_g1g2_from_lens(lens,full_chain):
     g1  = full_chain.gamma1_los_lens1.mean()
