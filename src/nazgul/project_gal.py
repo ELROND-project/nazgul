@@ -306,11 +306,11 @@ def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,
     """   
     
     # compute surface density within minimum theta_E 
-    dens_at_thetamin = getDensAtRad(kw_2Ddens,min_thetaE_kpc)
     # add plot Sigma_encl vs theta
     Sigma_crit_min   = SigCrit(z_lens=GalProj.z,z_source=z_source_max,cosmo=GalProj.cosmo)
-    r,Sigma_encl     = cells2SigRad(kw_2Ddens)
-    
+    r,Sigma_encl     = cells2SigEnclRad(kw_2Ddens)
+    dens_at_thetamin = getEnclDensAtRad(min_thetaE_kpc,r,Sigma_encl)
+
     arcXkpc = GalProj.cosmo.arcsec_per_kpc_proper(GalProj.z)
     theta = r*arcXkpc
     Sigma_encl_arc = Sigma_encl/(arcXkpc**2)
@@ -327,7 +327,7 @@ def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,
     min_thetaE = min_thetaE_kpc*arcXkpc
     ax.axvline(to_dimless(min_thetaE),label=r"$\theta_{min}$="+str(short_SciNot(min_thetaE)),ls="-",c="grey")
     dens_at_thetamin_arc = dens_at_thetamin/(arcXkpc**2)
-    ax.axhline(to_dimless(dens_at_thetamin_arc),label=r"$\Sigma(\theta_{min})$="+str(short_SciNot(dens_at_thetamin_arc)),ls="--",c="g")
+    ax.axhline(to_dimless(dens_at_thetamin_arc),label=r"$\Sigma(<\theta_{min})$="+str(short_SciNot(dens_at_thetamin_arc)),ls="--",c="g")
     if np.any(Sigma_crit_min_arc<Sigma_encl_arc):
         theta_E_max = theta[np.argmin(np.abs(Sigma_crit_min_arc-Sigma_encl_arc))]
         ax.axvline(to_dimless(theta_E_max),label=r"$\theta_E(z_{s,max})$="+str(short_SciNot(theta_E_max)),ls="--",c="b")
@@ -396,9 +396,8 @@ def create_verify_lens_fnc(interpSigEncArc2):
             return np.nan
     return verify_lens
 
-def getDensAtRad(kw_2Ddens,rad):
-    # get density within radius
-    radii,Sigma_encl = cells2SigRad(kw_2Ddens)
+def getEnclDensAtRad(rad,radii,Sigma_encl):
+    # get ENCLOSED density within radius
     rad = ensure_unit(rad,radii.unit)
     i_r = np.argmin(np.abs(radii-rad))
     return Sigma_encl[i_r]
@@ -473,7 +472,28 @@ def get_rough_thetaE(kw_2Ddens,cosmo,z_lens,z_source,
                                        nm_sigmaplot=nm_sigmaplot,
                                        fig_Sig=fig_Sig,**kw_Ddds)
 
-def cells2SigRad(kw_2Ddens):    
+def cells2SigEnclRad(kw_2Ddens):
+    
+    r_sorted,m_sorted,area_sorted = cells2MRad(kw_2Ddens)
+    
+    # Cumulative sum
+    cumulative_mass = np.cumsum(m_sorted)
+    cumulative_area = np.cumsum(area_sorted)
+    
+    # Compute enclosed density Sigma(<r)
+    Sigma_encl = cumulative_mass/cumulative_area
+    
+    return r_sorted,Sigma_encl
+
+def cells2SigRad(kw_2Ddens):
+    r_sorted,m_sorted,area_sorted = cells2MRad(kw_2Ddens)
+    Sigma = m_sorted/area_sorted # for each "pixel" compute the density
+    return r_sorted,Sigma
+
+def cells2MRad(kw_2Ddens):
+    """
+    From the 2D AMR cells, order them in growing radii and compute return their radius, mass and area 
+    """
     xc,yc = kw_2Ddens["MD_coords"] #kpc
     # to speed up the code I need to vectorise it -
     # but then I need to ingore the units
@@ -509,21 +529,16 @@ def cells2SigRad(kw_2Ddens):
     r_sorted = r[idx]
     m_sorted = mass[idx]
     area_sorted = area[idx] 
-    # Cumulative sum
-    cumulative_mass = np.cumsum(m_sorted)
-    cumulative_area = np.cumsum(area_sorted)
+    return r_sorted,m_sorted,area_sorted
     
-    # Compute enclosed density Sigma(<r)
-    Sigma_encl = cumulative_mass/cumulative_area
-    return r_sorted,Sigma_encl
-
+    
 def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot="Sigma_AMR.png"):
     # Critical density
     Sigma_crit = (const.c**2 / (4*np.pi*const.G) * (Ds/(Dd*Dds))).to("Msun/kpc^2")
     # Physical scale of 1 arcsec at Dd
     arcXkpc = u.rad.to("arcsec")*u.arcsec/Dd.to("kpc") # arcsec/kpc (on the lens plane)
 
-    r_sorted,Sigma_encl = cells2SigRad(kw_2Ddens)
+    r_sorted,Sigma_encl = cells2SigEnclRad(kw_2Ddens)
     # theta
     theta = r_sorted*arcXkpc
 
