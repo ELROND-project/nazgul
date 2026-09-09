@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 from astropy.stats import sigma_clip
+from matplotlib.colors import ListedColormap
 from scipy.ndimage import zoom,gaussian_filter
 
 from python_tools.tools import to_dimless
@@ -178,3 +179,12 @@ def mask_bright_center(lens,image=None,rad_pix=10):
     r_mask_in = rad_pix# to_dimless(rad/lens.deltaPix)     #pixel 
     mask = mask_in(xmax,ymax,r_mask_in,mask)
     return mask
+
+def white_mask_cmap(alpha=1.0):
+    """Colormap for a boolean mask: transparent for 1, white with given alpha for 0."""
+    return ListedColormap([(254, 254,254, alpha), (0, 0, 0, 0.0)])
+
+def overplot_mask(ax,mask,alpha=.3):
+    mask = np.array(mask,dtype=int)
+    ax.imshow(mask,cmap=white_mask_cmap(alpha),vmin=0, vmax=1)
+    return ax
