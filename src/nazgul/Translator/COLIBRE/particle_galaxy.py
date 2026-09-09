@@ -224,9 +224,10 @@ class SimPartGal(BasicPartGal):
         # coord of the centre
         self.centre = self.swift_gal.centre.to_physical_value("Mpc") 
         #self.part_dir = get_part_dir(self.snap,data_dir=data_dir,**kw_sim)
-       
-        
-        
+        # cosmo is a bottleneck and light to store
+        # we compute it once and then it's done
+        self.cosmo
+    
     @property
     def swift_gal(self):
         try:
@@ -322,7 +323,7 @@ class SimPartGal(BasicPartGal):
         print("... unpacked Particle Galaxy")
         return 
         
-    def _unpack(self):
+    def _unpack(self,verbose=True):
         """Reconstruct attributes AFTER COMPUTATION
         that were intentionally removed before serialization.
         """
@@ -446,14 +447,16 @@ def get_vdisp(simpartgal,
     
     # Follows from equation 15 of Vandenbroucke et al., 2024
     # https://ftp.strw.leidenuniv.nl/mcgibbon/SOAP.pdf
-    # recenter velocities wrt velocity of center of mass:
-    dv =  swfg.stars.velocities - swfg.velocity_centre
-    # similarly take the masses  
+    # recenter velocities wrt velocity of center of mass OF THE COMPONENT:
+    strs_vel = swfg.stars.velocities
+    # to do so we take the masses  
     # ~and do not convert in phys. coord.~ No, it's very inefficient
-    # -> doens't matter as long as it's consistent -> it is by construction
-    masses = swfg.stars.masses.value #.to_physical_value("Msun")
+    # -> doens't matter as it would cancel each other
+    masses = swfg.stars.masses.value
     # broadcast them to match the 3D velocity matrix
     masses_broad = np.broadcast_to(masses,(3,len(masses))).T
+    svc = np.sum(strs_vel*masses_broad,axis=0)/np.sum(masses)
+    dv =  strs_vel - svc # swfg.velocity_centre
     """
     # reattach the correct unit -> not needed as we just take the value of masses
     unit_mass  = cosmo_quantity(1,masses.unit_quantity,comoving=masses.comoving,
