@@ -24,6 +24,7 @@ for file in path_trnsl.iterdir():
 # Define the standard simulation (for convenience)
 std_simsuite  = conf.std_simsuite
 std_sim       = sims[std_simsuite][0]
+
 try:
     std_subsim = subsims[std_simsuite][std_sim][0]
 except KeyError:
@@ -35,7 +36,10 @@ except IndexError:
     test_sim = None
     pass
     #warnings.warn("Test simulation not implemented")
-
+# standard kwargs for simulation
+std_kw_sim    = {"simsuite":std_simsuite,
+                 "sim":std_sim,
+                 "subsim":std_subsim}
 # used for tutorial -linked ONLY snap 20 of test_sim
 tutorial_sim  = sims["EAGLE"][2]
 
