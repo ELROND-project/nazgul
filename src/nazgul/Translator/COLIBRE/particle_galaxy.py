@@ -138,8 +138,11 @@ def Gal2MXYZ_part(Gal,part_type,CM=None):
     XY coords. of a specific particle type in kpc centered around center
     """
     part_type = check_part_type(part_type)
-    part = getattr(Gal,part_type) 
-    
+    try:
+        part = getattr(Gal,part_type) 
+    except:
+        Gal.run()
+        part = getattr(Gal,part_type) 
     # Particle masses
     Ms       = _get_masses_part(part)
     # Particle pos
@@ -174,25 +177,41 @@ def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload
     return {"kw_Gal":kw_Gal,"sim":sim,"subsim":subsim}
 
 # basically a wrapper for swift galaxies
-class SimPartGal(BasicPartGal):
-    # what we need is
-    # z
-    # cosmology
-    # particles (get from Gal2MXYZ)
-    # identity
-    # name
-    
+class SimPartGal(BasicGal):
+    """Particle-based galaxy extracted from a hydrodynamical simulation snapshot.
+
+    Wraps a swiftgalaxy object identified by (sim, subsim, snap, soap_index) and
+    exposes its particle species (stars, gas, dark matter, black holes) plus their
+    aggregate masses/counts. Particle data is heavy, so it is loaded lazily via
+    `run` / `setup`, stripped before serialization (see `_large_attributes_setup`),
+    and reloaded on demand.
+    """
+
     # define name to verify identity
-    _type_id = "SimPartGal_"+simsuite_name
-    _large_attributes_setup  = ["stars","gas","dark_matter","black_holes","swift_gal","_swift_gal"]
+    _type_id = f"SimPartGal_{simsuite_name}"
+
+    # Heavy, I/O-backed attributes: dropped before pickling, reloaded by _setup().
+    # NOTE: only the backing field "_swift_gal" belongs here, not the "swift_gal"
+    # property itself -- hasattr() on a property always succeeds (it just runs the
+    # getter), so listing "swift_gal" here made every _needs_setup() check
+    # silently trigger a full reload as a side effect.
+    _large_attributes_setup = ["_swift_gal", "stars", "gas", "dark_matter", "black_holes"]
     _large_attributes_unpack = []
-    
+
     simsuite = simsuite_name
     simsuite_code = simsuite_short_name
- 
-    def __init__(self,kw_Gal,sim=std_sim,subsim=std_subsim):
-        #kw_Gal: soap_index,snap and/or z
-        #self.kw_Gal     = kw_Gal
+
+    # species -> where to read counts/masses from on the swift galaxy object
+    _SPECIES_CONFIG = {
+        "stars":       dict(count_attr="N_stars", mass_attr="M_stars", mass_field="masses"),
+        "gas":         dict(count_attr="N_gas",   mass_attr="M_gas",   mass_field="masses"),
+        "dark_matter": dict(count_attr="N_dm",    mass_attr="M_dm",    mass_field="masses"),
+        # black holes: dynamical mass is used rather than particle mass
+        "black_holes": dict(count_attr="N_bh",    mass_attr="M_bh",    mass_field="dynamical_masses"),
+    }
+
+    def __init__(self, kw_Gal, sim=std_sim, subsim=std_subsim):
+        # kw_Gal: soap_index, and either snap or z
         self.soap_index  = kw_Gal["soap_index"] #self.swift_gal.halo_catalogue.soap_index
         self.z,self.snap = get_z_snap(z=kw_Gal.get("z",None),
                             snap=kw_Gal.get("snap",None),
@@ -200,157 +219,183 @@ class SimPartGal(BasicPartGal):
         
         self.sim         = Path(sim)
         self.subsim      = Path(subsim)
-        
-        # here we load but not store the swift galaxy to avoid 
-        # increasing the memory load
-        sg              = self.swift_gal
-        self.soap_file  = Path(sg.halo_catalogue.soap_file)
-        #'/cosma8/data/dp004/colibre/Runs/L0025N0752/THERMAL_AGN_m5/SOAP-HBT/halo_properties_0127.hdf5'
-        
-        self.a =  sg.metadata.a
-        self.verbose_assert_almost_equal((1/self.a)-1,self.z,msg="Redshifts")
+
+        # Access (but don't store separately) the swift galaxy just to pull
+        # small metadata now; particle arrays themselves are loaded later,
+        # lazily, via initialise_parts().
+        sg = self.swift_gal
+        self.soap_file = Path(sg.halo_catalogue.soap_file)
+        # e.g. '/cosma8/data/dp004/colibre/Runs/L0025N0752/THERMAL_AGN_m5/SOAP-HBT/halo_properties_0127.hdf5'
+
+        self.a = sg.metadata.a
+        self.verbose_assert_almost_equal((1 / self.a) - 1, self.z, msg="Redshifts")
         self.verify_snap()
 
         self.gal_dir  = get_gal_dir(kw_Gal,snap=self.snap,
                                     sim=self.sim,subsim=self.subsim,
                                     simsuite=self.simsuite)
         mkdir(self.gal_dir)
-        
-        # total mass
+
+        # total mass (bound-subhalo definition)
         #SphOverDens = self.swift_gal.halo_catalogue.spherical_overdensity_500_crit
         #self.M_tot  = SphOverDens.total_mass.to_physical_value("Msun")[0] #Msun
-        BoundSubHalo = self.swift_gal.halo_catalogue.bound_subhalo
-        self.M_tot  = BoundSubHalo.total_mass.to_physical_value("Msun")[0] # Msun
-        # coord of the centre
-        self.centre = self.swift_gal.centre.to_physical_value("Mpc") 
-        #self.part_dir = get_part_dir(self.snap,data_dir=data_dir,**kw_sim)
-        # cosmo is a bottleneck and light to store
-        # we compute it once and then it's done
+        bound_subhalo = sg.halo_catalogue.bound_subhalo
+        self.M_tot    = bound_subhalo.total_mass.to_physical_value("Msun")[0]  # Msun
+
+        # coordinates of the centre
+        self.centre = sg.centre.to_physical_value("Mpc")
+
+        # cosmo is a bottleneck and light to store: compute (and cache) it once
         self.cosmo
-    
+
+    # ------------------------------------------------------------------
+    # Swift galaxy access
+    # ------------------------------------------------------------------
     @property
     def swift_gal(self):
         try:
             return self._swift_gal
         except AttributeError:
-            # only compute it once
-            swift_gal = get_swiftgal(sim=self.sim,
+            # only fetched the first time it's accessed
+            self._swift_gal = get_swiftgal(sim=self.sim,
                                      subsim=self.subsim,
                                      snap=self.snap,
                                      soap_index=self.soap_index)
-            self._swift_gal = swift_gal
-            return swift_gal
-            
+            return self._swift_gal
+
     @swift_gal.deleter
     def swift_gal(self):
         del self._swift_gal
-    
-    def initialise_parts(self):
-        # heavy -> avoid until necessary and do not store
-        sg               = self.swift_gal
-        self.stars       = sg.stars
-        self.gas         = sg.gas
-        self.dark_matter = sg.dark_matter
-        self.black_holes = sg.black_holes
-        # The following are very inefficient
-        if not hasattr(self,"M_stars"):
-            self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
-        if not hasattr(self,"M_gas"):
-            self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
-        if not hasattr(self,"M_dm"):
-            self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
-        # again using dynamical masses for BH
-        if not hasattr(self,"M_bh"):
-            self.M_bh        = np.sum(self.black_holes.dynamical_masses.to_physical().in_units(u.Msun))
-        if not hasattr(self,"N_stars"):
-            self.N_stars = len(sg.stars.particle_ids)
-        if not hasattr(self,"N_gas"):
-            self.N_gas = len(sg.gas.particle_ids)
-        if not hasattr(self,"N_dm"):
-            self.N_dm = len(sg.dark_matter.particle_ids)
-        if not hasattr(self,"N_bh"):
-            self.N_bh = len(sg.black_holes.particle_ids)
-        if not hasattr(self,"N_part"):
-            self.N_part = self.N_stars + self.N_gas + self.N_dm + self.N_bh
-        if not hasattr(self,"M"):
-            self.M = self.M_stars + self.M_gas + self.M_dm + self.M_bh 
-        return 0
-        
+
     @cached_property
     def cosmo(self):
         return self.swift_gal.metadata.cosmology
-    
-    ### Class Structure ####
-    ########################
+
+    def initialise_parts(self):
+        """Load particle species and their aggregate mass/count.
+
+        Idempotent: anything already present (e.g. reloaded from a previous
+        run) is left untouched rather than recomputed.
+        """
+        sg = self.swift_gal
+
+        for species in self._SPECIES_CONFIG:
+            if not hasattr(self, species):
+                setattr(self, species, getattr(sg, species))
+
+        for species, cnfg in self._SPECIES_CONFIG.items():
+            particles = getattr(self, species)
+            if not hasattr(self, cnfg["mass_attr"]):
+                masses = getattr(particles, cnfg["mass_field"])
+                setattr(self, cnfg["mass_attr"], np.sum(masses.to_physical().in_units(u.Msun)))
+            if not hasattr(self, cnfg["count_attr"]):
+                setattr(self, cnfg["count_attr"], len(particles.particle_ids))
+
+        if not hasattr(self, "N_part"):
+            self.N_part = sum(getattr(self, cnfg["count_attr"]) for cnfg in self._SPECIES_CONFIG.values())
+        if not hasattr(self, "M"):
+            self.M = sum(getattr(self, cnfg["mass_attr"]) for cnfg in self._SPECIES_CONFIG.values())
+        return 0
+
+    # ------------------------------------------------------------------
+    # Class structure
+    # ------------------------------------------------------------------
     def _identity(self):
+        # Returns tuple to identify uniquely this galaxy
         # Returns tuple to identify uniquely this galaxy
         Id = (self._type_id,self.sim,self.subsim,
             self.snap,self.soap_index)
-        return Id 
-        
-    def upload_prev(self,verbose=True):
-        prev_Gal = ReadGal(self)
-        if prev_Gal is False:
+        return Id
+
+    def __str__(self):
+        return (f"{self._type_id}(sim={self.sim}, subsim={self.subsim}, "
+                f"snap={self.snap}, soap_index={self.soap_index})")
+
+    def ReadClass(self, cl):
+        return ReadGal(cl)
+
+    def upload_prev(self, verbose=True):
+        prev_gal = self.ReadClass(self)
+        if prev_gal is False:
             if verbose:
                 print("Failed loading of prev. gal.")
             return False
-        if prev_Gal != self:
+        if prev_gal != self:
             if verbose:
-                print(f"Prev. Gal not equal to self: {prev_Gal._identity()==self._identity()}")
-                print(f"Prev. Gal: {prev_Gal._identity()}")
+                print(f"Prev. Gal not equal to self: {prev_gal._identity() == self._identity()}")
+                print(f"Prev. Gal: {prev_gal._identity()}")
                 print(f"Self:      {self._identity()}")
             return False
-        # if common attribute, they are overwritten by previous:
-        self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
+        # common attributes are overwritten by the previous, already-computed version
+        self.__dict__ = {**self.__dict__, **prev_gal.__dict__}
         if verbose:
             print("Loaded prev. gal.")
         return True
-    
+
     def store_gal(self):
-        # store class instance 
-        store_class(self,path=self.dill_path_abs())
+        # store class instance
+        store_class(self, path=self.dill_path_abs())
 
     # ------------------------------------------------------------------
     # Lazy reconstruction logic
     # ------------------------------------------------------------------
     def _setup(self):
-        """Setup all attributes NEEDED FOR COMPUTATION
-        that were intentionally removed before serialization.
+        """Load everything needed for computation that was stripped before
+        serialization: the swift galaxy and its particle species.
         """
-        print("Unpacking Particle Galaxy ...")
+        print("Setting up Particle Galaxy ...")
         self.swift_gal
         self.initialise_parts()
-        print("... unpacked Particle Galaxy")
-        return 
-        
+        print("... Particle Galaxy set up")
+        return
+
     def _unpack(self,verbose=True):
         """Reconstruct attributes AFTER COMPUTATION
         that were intentionally removed before serialization.
         """
-        # there is nothing to do for this class
-        return 
+        # nothing to do: this class has no post-computation attributes to restore
+        return
 
-    ########################     
     @property
     def name(self):
-        # arbitrary funct to give name to gal
-        # assuming that the simulation stays ~ const
-        nm = f"G{self.soap_index}"
-        return nm
-        
+        # arbitrary function to give a name to the galaxy
+        # assuming that the simulation stays ~constant
+        return  _get_gal_name(soap_index)
+
     def verify_snap(self):
         # quick validity check that the snap is correct
         nm_file        = str(self.soap_file.name)
         snap_from_file = nm_file.split("_")[-1].split(".")[0]
-        assert self.snap==snap_from_file
-    
-    def run(self,reload=True):
+        err_msg        = f"snap mismatch: expected {self.snap}, soap file suggests {snap_from_file}"
+        assert self.snap == snap_from_file, (err_msg)
+
+    def run(self, reload=True):
+        """Ensure the galaxy is fully set up, reusing prior work whenever possible.
+
+        - If this instance already has everything setup needs (e.g. `run` was
+          already called earlier in this session), this is a no-op.
+        - Otherwise, optionally reload a previously stored instance from disk
+          (`reload=True`), then perform (only) the missing setup, and store the
+          result if it wasn't already on disk.
+        """
+        if not self._needs_setup():
+            return self
+
         upload_successful = False
         if reload:
             upload_successful = self.upload_prev(verbose=True)
+
         self.setup()
+
         if not upload_successful:
             self.store_gal()
+
+def get_gal_name(kw_gal):
+    soap_index = kw_gal["soap_index"]
+    return  _get_gal_name(soap_index)
+    
+def _get_gal_name(soap_index):
+    return f"G{self.soap_index}"
             
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
