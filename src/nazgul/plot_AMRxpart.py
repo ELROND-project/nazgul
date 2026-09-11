@@ -22,7 +22,8 @@ from nazgul.AMR2D_PLL import plot_AMR_cells
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Translator.translator import PartGal,Gal2kwMXYZ,Gal2kwMXYZ_part,get_sim_func
 
-def get_kw_extents_RE(Gal,RE,tE,scale_tE_cutout=10):
+def_scale_tE_cutout = 10 
+def get_kw_extents_RE(Gal,RE,tE,scale_tE_cutout=def_scale_tE_cutout):
     cutout_arcs = tE*scale_tE_cutout
     cutout_kpc  = RE*scale_tE_cutout
     kw_extents = {"extent_arcsec":[-cutout_arcs.value,cutout_arcs.value,
@@ -36,13 +37,18 @@ default_kw_densmap={"max_particles":100,
                     "dens_thresh": 0.*u.Msun/(u.kpc**2),
                     "clip":True}
 
-def _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=True):
+def _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,
+                                proj_index=None,scale_tE_cutout=def_scale_tE_cutout,
+                                plot_figall=True):
     r_all,Sigma_encl_all   = cells2SigEnclRad(kw_2Ddens_all)
-    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma_encl_all,Sigma_encl_all,Sigma_crit,plot_figall)
+    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,kw_2D_dens,Gal,r_all,Sigma_encl_all,Sigma_encl_all,proj_index,
+                                        scale_tE_cutout,plot_figall)
     kw_1D_dens["Sigma_encl_all"] = Sigma_encl_all # Msun/kpc^2
     return kw_1D_dens
 
-def _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=True):
+def _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,
+                                    proj_index=None,scale_tE_cutout=def_scale_tE_cutout,
+                                    plot_figall=True):
     r_all,M_all,area_all   = cells2MRad(kw_2Ddens_all)
     Sigma_all = M_all/area_all
     
@@ -54,20 +60,22 @@ def _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=Tru
     # Compute enclosed density Sigma(<r)
     Sigma_encl_all = cumulative_mass/cumulative_area
 
-    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma_all,Sigma_encl_all,Sigma_crit,plot_figall)
+    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,kw_2D_dens,Gal,r_all,Sigma_all,Sigma_encl_all,proj_index,
+                                        scale_tE_cutout,plot_figall)
     kw_1D_dens["Sigma_all"] = Sigma_all # Msun/kpc^2
     return kw_1D_dens
 
-def _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma,Sigma_encl,plot_figall=True):
+def _get_kw_1D_density_gen(kw_1D_dens,kw_2Ddens,Gal,r,Sigma,Sigma_encl,proj_index=None,
+                           scale_tE_cutout=def_scale_tE_cutout,plot_figall=True):
     r_all = r.to("kpc")
     
-    Sigma = Sigma.to("Msun/kpc^2")
-    Sigma_crit     = ensure_unit(Sigma_crit,Sigma.unit)
+    Sigma      = Sigma.to("Msun/kpc^2")
     
     kw_1D_dens["r_all"] = r #kpc
     Sigma_crit = kw_1D_dens["Sigma_crit"] # Msun/kpc^2
+    Sigma_crit = ensure_unit(Sigma_crit,Sigma.unit)
     
-    MD_coord_all = copy.copy(kw_2Ddens_all["MD_coords"])
+    MD_coord_all = copy.copy(kw_2Ddens["MD_coords"])
     kw_1D_dens["MD_coords_all"] = MD_coord_all #
     
     RE         = np.interp(Sigma_crit.value, 
@@ -84,19 +92,19 @@ def _get_kw_1D_density_gen(kw_1D_dens,Gal,r,Sigma,Sigma_encl,plot_figall=True):
         
     if plot_figall:
         savedir = get_savedir_plots(Gal,savedir=savedir)
-        figall,axall = plot_AMR_cells(kw_2Ddens_all,kw_extents=kw_extents)        
+        figall,axall = plot_AMR_cells(kw_2Ddens,kw_extents=kw_extents)        
         figall.suptitle("AMR of total mass projection")
         nm_AMR = f"{savedir}/AMR_full_proj{proj_index}.png"
         figall.savefig(nm_AMR)
         print(f"Saved {nm_AMR}") 
         plt.close(figall)
     # free memory
-    del kw_2Ddens_all
+    del kw_2Ddens
     return kw_1D_dens
     
 def get_kw_1D_density(Gal,
                       proj_index = 0,
-                      scale_tE_cutout = 10,
+                      scale_tE_cutout = def_scale_tE_cutout,
                       enclosed=True,
                       reload=True,
                       kw_densmap = default_kw_densmap,
@@ -132,9 +140,13 @@ def get_kw_1D_density(Gal,
         del kw_parts_all,kw_parts_all_proj
         kw_1D_dens["Sigma_crit"] = Sigma_crit
         if enclosed:
-            kw_1D_dens = _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=plot_figall)
+            kw_1D_dens = _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,
+                                                     proj_index = proj_index,scale_tE_cutout=scale_tE_cutout,
+                                                     plot_figall=plot_figall)
         else:
-            kw_1D_dens = _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,plot_figall=plot_figall)
+            kw_1D_dens = _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,
+                                                         proj_index = proj_index,scale_tE_cutout=scale_tE_cutout,
+                                                         plot_figall=plot_figall)
     
     with open(nm_kw_1D_dens,"wb") as f:
         dill.dump(kw_1D_dens,f)
@@ -168,10 +180,8 @@ def retrieve_z_source(PrjGal,z_source_def=2):
 # Plot AMR density for different particle species
 def plot_AMR_densityXpart(Gal,
                      proj_index    = 0,
-                     max_particles = default_kw_densmap["max_particles"],
-                     min_area      = default_kw_densmap["min_area"],
-                     dens_thresh   = default_kw_densmap["dens_thresh"],
-                     scale_tE_cutout = 10,
+                     kw_densmap    = default_kw_densmap,
+                     scale_tE_cutout = def_scale_tE_cutout,
                      savedir       = None,
                      part_thresh   = 1e4, # min n* of particles to be plotted
                      rerun         = False,
@@ -189,10 +199,6 @@ def plot_AMR_densityXpart(Gal,
             warnings.warn(f"Plot {nm_Sgm} already present - skipping.")
             return None
 
-    kw_densmap     = {"max_particles":max_particles,
-                      "min_area":min_area,
-                      "dens_thresh":dens_thresh,
-                      "clip":True}
     kw_1D_dens     = get_kw_1D_density(Gal,
                                        proj_index,
                                        kw_densmap=kw_densmap,
