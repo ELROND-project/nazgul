@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 from functools import cached_property
 
-from python_tools.tools import mkdir
+from python_tools.tools import mkdir,ensure_unit
 from python_tools.get_res import LoadClass,load_whatever
 
 from nazgul.pathfinder import get_gal_dir,path_nazgul
@@ -53,7 +53,7 @@ def _get_coord_part(part):
     Xpart = coords_phys[:, 0] # kpc
     Ypart = coords_phys[:, 1] # kpc
     Zpart = coords_phys[:, 2] # kpc
-    return Xpart,Ypart,Zpart
+    return Xpart.to_astropy(),Ypart.to_astropy(),Zpart.to_astropy()
     
 def _get_masses_part(part):
     part_name = part.group_name
@@ -65,7 +65,7 @@ def _get_masses_part(part):
         # -> should be correct to use dynamical mass
         masses = part.dynamical_masses
     Mpart = masses.to_physical().in_units(u.Msun)  # Msun
-    return Mpart
+    return Mpart.to_astropy()
 
 def get_coord_part(Gal,part_type):
     "Return coordinates in [kpc] of given particle type"
@@ -110,11 +110,12 @@ def Gal2MXYZ(ColGal):
     Ys-=Y_cm
     Zs-=Z_cm
     
-    #Convert all to astropy for convenience
-    Ms = Ms.to_astropy()
-    Xs = Xs.to_astropy()
-    Ys = Ys.to_astropy()
-    Zs = Zs.to_astropy()
+    #Convert all to astropy for convenience -> done in advance
+    
+    #Ms = Ms.to_astropy()
+    #Xs = Xs.to_astropy()
+    #Ys = Ys.to_astropy()
+    #Zs = Zs.to_astropy()
     
     return Ms, Xs,Ys,Zs
 
@@ -161,15 +162,16 @@ def Gal2MXYZ_part(Gal,part_type,CM=None):
     if CM is None:
         CM = get_CoM(Gal)
     X_cm,Y_cm,Z_cm = CM
-    Xs -= X_cm
-    Ys -= Y_cm
-    Zs -=Z_cm
     
-    #Convert all to astropy for convenience
-    Ms = Ms.to_astropy()
-    Xs = Xs.to_astropy()
-    Ys = Ys.to_astropy()
-    Zs = Zs.to_astropy()
+    Xs -= ensure_unit(X_cm,Xs.unit)
+    Ys -= ensure_unit(Y_cm,Ys.unit)
+    Zs -= ensure_unit(Z_cm,Zs.unit)
+    
+    #Convert all to astropy for convenience -> done in advance
+    #Ms = Ms.to_astropy()
+    #Xs = Xs.to_astropy()
+    #Ys = Ys.to_astropy()
+    #Zs = Zs.to_astropy()
     return Ms,Xs,Ys,Zs
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
@@ -177,7 +179,7 @@ def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload
     return {"kw_Gal":kw_Gal,"sim":sim,"subsim":subsim}
 
 # basically a wrapper for swift galaxies
-class SimPartGal(BasicGal):
+class SimPartGal(BasicPartGal):
     """Particle-based galaxy extracted from a hydrodynamical simulation snapshot.
 
     Wraps a swiftgalaxy object identified by (sim, subsim, snap, soap_index) and
@@ -307,10 +309,6 @@ class SimPartGal(BasicGal):
             self.snap,self.soap_index)
         return Id
 
-    def __str__(self):
-        return (f"{self._type_id}(sim={self.sim}, subsim={self.subsim}, "
-                f"snap={self.snap}, soap_index={self.soap_index})")
-
     def ReadClass(self, cl):
         return ReadGal(cl)
 
@@ -360,7 +358,7 @@ class SimPartGal(BasicGal):
     def name(self):
         # arbitrary function to give a name to the galaxy
         # assuming that the simulation stays ~constant
-        return  _get_gal_name(soap_index)
+        return  _get_gal_name(self.soap_index)
 
     def verify_snap(self):
         # quick validity check that the snap is correct
@@ -395,7 +393,7 @@ def get_gal_name(kw_gal):
     return  _get_gal_name(soap_index)
     
 def _get_gal_name(soap_index):
-    return f"G{self.soap_index}"
+    return f"G{soap_index}"
             
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
