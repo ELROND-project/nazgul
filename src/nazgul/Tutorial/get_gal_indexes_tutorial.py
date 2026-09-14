@@ -12,8 +12,10 @@ from glob import glob
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-from nazgul.Translator import std_sim
-from nazgul.pathfinder import std_gal_dir
+from nazgul.configurations import nazgul_path
+from nazgul.Translator import tutorial_sim as std_sim
+# the tutorial ships its own mini data tree, not RingBearer
+std_gal_dir = nazgul_path/"Tutorial/data_Tuto"/std_sim/"Gals"
 # from sql_connect import exec_query -> this would be needed for the complete 
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever

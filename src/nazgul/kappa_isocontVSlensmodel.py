@@ -16,7 +16,7 @@ from python_tools.tools import to_dimless
 #from model_sim_lens import lens_model_list
 # temp. modelling path
 
-from nazgul.modelling_severals import setup_lens
+from nazgul.Modelling.modelling_severals_wLOS import setup_lens
 from nazgul.mount_doom.lens_system import LensSystem
 
 def get_kappa_model(lens):

@@ -12,7 +12,7 @@ from lenstronomy.Util.param_util import shear_cartesian2polar,ellipticity2phi_q
 
 
 from python_tools.get_res import load_whatever
-from nazgul.combined_modelling_result_reworked import get_all_lens_models
+from nazgul.combined_modelling_results import get_all_lens_models,get_res_dir
 
 def _convert_sample2qphi(mc_sample,param_mcmc):
     print("Very specific function - do not use outside of here")
@@ -183,19 +183,12 @@ if __name__=="__main__":
     model    = args.model
     # to which cifra significativa to round
     _rnd = 3
-    if model=="noLOS":
-        from nazgul.model_shear import res_dir_base
-    elif model=="fitLOS":
-        from nazgul.model_fitLOS import res_dir_base    
-    elif model=="allLOS":
-        from nazgul.model_allLOS import res_dir_base
-    elif model=="fitLOS_fixedOD":
-        from nazgul.model_fitLOS_fixedOD import res_dir_base
-    else:
-        if model in name_models:
-            print("To implement") 
-        raise RuntimeError(f"model {model} not known")
-        
-    lenses_modelled = get_all_lens_models(res_dir_base)
+    if model not in name_models:
+        raise RuntimeError(f"model {model} not known - accepted: {name_models}")
+    # get_res_dir maps the model name to its Modelling/ module and appends the
+    # {SimCode}_{Sim}[_{subsim}] level, which is where the snap_* dirs live
+    res_dir = get_res_dir(model)
+
+    lenses_modelled = get_all_lens_models(res_dir)
     for lens in lenses_modelled:
         plot_corner_lens(lens)

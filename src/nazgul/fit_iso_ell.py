@@ -20,7 +20,7 @@ from python_tools.tools import ensure_unit,to_dimless
 
 from nazgul.lib_plot import base_colors
 from nazgul.masking import overplot_mask
-from nazgul.util_fit_ell import get_initial_kwfit
+from nazgul.utils_fit_ell import get_initial_kwfit
 
 def rescale_kappa(kappa,sigma_smooth=1.0,thrs_scale=3,add_k=1e-6):
     # smooth it
@@ -563,7 +563,7 @@ if __name__=="__main__":
     raise RuntimeError("Outdated")
     from nazgul.mount_doom.cracks_of_doom import LoadLens
     from nazgul.mount_doom.lens_system import LensSystem
-    from nazgul.modelling_wLOS import default_lens_path as lens_path
+    from nazgul.Modelling.modelling_sis_sie import default_lens_path as lens_path
 
     # for now applied to a "known" lens galaxy
     gal_lens = LoadLens(lens_path)

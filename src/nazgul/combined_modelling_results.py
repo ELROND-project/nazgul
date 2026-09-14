@@ -130,6 +130,33 @@ def get_all_lens_model_paths(res_dir,snaps=[],check_if_workin_on_it=True):
     
 
 
+def get_all_lens_models(res_dir):
+    pth_modlenses = get_all_lens_model_paths(res_dir)
+    lenses = []
+    for pth_lens in pth_modlenses:
+        try:
+            # if res exists AND is loaded correctly
+            load_whatever(pth_lens/"kw_res.*")
+            # then we consider the lens
+            model_res_dir = pth_lens
+            lens_link     = model_res_dir/"link_gallens.pkl"
+            if not os.path.exists(lens_link):
+                warnings.warn("MONKEY-PATCH- update name of the lens on the fly")
+                _lens_dir = Path(os.readlink(lens_link)).parent
+                _nm_lns = str(model_res_dir.name)
+                prj_index = int(_nm_lns.split("Prj")[1][0])
+                nmlns = _nm_lns.split("_")[2]
+                candidate_lens_name = "Sub_Lens_"+nmlns+"_Prj"+str(prj_index)+"*"
+                cnd_name =  str(_lens_dir)+"/"+candidate_lens_name
+                lens_link = _glob_exactly_1(cnd_name,_str_info="lens dir ="+str(_lens_dir)) 
+            lens = LoadLens(lens_link)
+            lens.unpack() 
+            lens.model_res_dir = model_res_dir
+            lenses.append(lens)
+        except Exception as e:
+            print(f"Failed to load {pth_lens} due to {e} - skipping.")
+    return lenses
+
 def _convert_shear2LOS(mc_sample,param_mcmc):
     """
     Only for convenience - rewrite gamma_ext, psi_ext as gamma_LOS_1,gamma_LOS_2
@@ -785,34 +812,6 @@ if __name__=="__main__":
         gc.collect()
         
 """
-def get_all_lens_models(res_dir):
-    pth_modlenses = get_all_lens_model_paths(res_dir)
-    lenses = []
-    for pth_lens in pth_modlenses:
-        try:
-            # if res exists AND is loaded correctly
-            load_whatever(pth_lens/"kw_res.*")
-            # then we consider the lens
-            model_res_dir = pth_lens
-            lens_link     = model_res_dir/"link_gallens.pkl"
-            if not os.path.exists(lens_link):
-                warnings.warn("MONKEY-PATCH- update name of the lens on the fly")
-                _lens_dir = Path(os.readlink(lens_link)).parent
-                _nm_lns = str(model_res_dir.name)
-                prj_index = int(_nm_lns.split("Prj")[1][0])
-                nmlns = _nm_lns.split("_")[2]
-                candidate_lens_name = "Sub_Lens_"+nmlns+"_Prj"+str(prj_index)+"*"
-                cnd_name =  str(_lens_dir)+"/"+candidate_lens_name
-                lens_link = _glob_exactly_1(cnd_name,_str_info="lens dir ="+str(_lens_dir)) 
-            lens = LoadLens(lens_link)
-            lens.unpack() 
-            lens.model_res_dir = model_res_dir
-            lenses.append(lens)
-        except Exception as e:
-            print(f"Failed to load {pth_lens} due to {e} - skipping.")
-    return lenses
-
-
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot Combined results for all the lens model of given run")
     parser.add_argument('-m','--model',type=str,

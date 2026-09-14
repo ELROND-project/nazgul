@@ -47,7 +47,7 @@ def get_rnd_kw_gal(simsuite=std_simsuite,sim=std_sim,subsim=None,
     """
     check_simsuite(simsuite)
     if simsuite=="EAGLE":
-        from nazgul.Translator.EAGLE.particle_galaxy import get_rnd_kw_gal
+        from nazgul.Translator.EAGLE.particle_galaxy import get_rnd_gal_indexes as get_rnd_kw_gal
         min_mass = str(min_mass)
         min_z    = str(min_z)
         max_z    = str(max_z)

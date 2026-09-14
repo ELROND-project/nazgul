@@ -8,12 +8,13 @@ import matplotlib.pyplot as plt
 
 from python_tools.tools import short_SciNot
 
-from nazgul.particle_galaxy import get_rnd_PG,get_CM
+from nazgul.Translator import std_simsuite
+from nazgul.Translator.translator import get_rnd_PG,get_CM
 
 Dcms = []
 Gals_nms = []
 for i in range(300):
-    Gal    = get_rnd_PG()
+    Gal    = get_rnd_PG(std_simsuite)
     if Gal.Name in Gals_nms:
         continue
     Gals_nms.append(Gal.Name)

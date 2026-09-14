@@ -160,8 +160,8 @@ def plot_kappa_overlap(kw_res, enclosed=True, out_path="tmp/1D_overlap.png"):
         kappa_lbl = r"log$_{10} \kappa(r)$ []"
     ax.set_xlabel(r_lbl)
     ax.set_ylabel(kappa_lbl)
-    if enclosed
-    ax.set_title("Overlap of enclosed and scaled 1D kappa profiles")
+    if enclosed:
+        ax.set_title("Overlap of enclosed and scaled 1D kappa profiles")
     else:
         ax.set_title("Overlap of scaled 1D kappa profiles")
 

@@ -15,7 +15,7 @@ from nazgul.pathfinder import get_lens_highdir
 import nazgul.mount_doom.cracks_of_doom as cod
 
 verbose = True
-from nazgul.particle_galaxy import PartGal
+from nazgul.Translator.translator import PartGal
 
 
 Gal    = PartGal(5,0,

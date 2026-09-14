@@ -17,7 +17,7 @@ from python_tools.tools import mkdir,to_dimless
 from nazgul.plot_PL import plot_all
 from nazgul.pathfinder import tmp_dir
 from nazgul.masking import mask_SEAGLE,mask_center
-from nazgul.mount_doom.cracks_of_doom import wrapper_get_rnd_lens
+from nazgul.mount_doom.generate_gal_lens import wrapper_get_rnd_lens
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]

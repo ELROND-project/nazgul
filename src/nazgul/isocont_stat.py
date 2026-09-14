@@ -11,7 +11,7 @@ from python_tools.tools import to_dimless
 from nazgul.stat_lenses import get_all_gallens_paths
 from nazgul.mount_doom.cracks_of_doom import LoadLens
 
-from nazgul.isodens import fit_isodens,fit_isopot,_err_map_type #,plot_isodens,plot_isopot
+from nazgul.fit_iso_ell import fit_isodens,fit_isopot,_err_map_type #,plot_isodens,plot_isopot
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 
 from nazgul.pathfinder import std_data_dir,tmp_dir

@@ -103,7 +103,7 @@ def get_kw_tE(lenses,
                 axes    =  kw_proj_res["principal_axes_2D"]
             except KeyError:
                 print("MONKEY PATCH\n###############\nComputing and updating 2D principal_axes to projection results that did not have it yet\n")
-                from project_gal import Gal2kwMXYZ,project_kw_parts,get_principal_axis_2D
+                from nazgul.project_gal import Gal2kwMXYZ,project_kw_parts,get_principal_axis_2D
                 kw_parts      = Gal2kwMXYZ(lensgal.Gal)
                 kw_parts_proj = project_kw_parts(kw_parts=kw_parts,
                                                  proj_index=lensgal.Gal.proj_index)

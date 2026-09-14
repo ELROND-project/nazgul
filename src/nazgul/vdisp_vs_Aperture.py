@@ -10,7 +10,7 @@ from nazgul.Translator.EAGLE.sql_connect import exec_query
 from nazgul.Translator.EAGLE.get_gal_indexes import get_query
 from nazgul.Translator.EAGLE.fnct import get_snap
 from nazgul.stat_lenses import get_all_gallens
-from nazgul.test_vdisp import get_tE_sis
+from nazgul.test_vdisp import _get_tE_SIS
 
 
 
@@ -68,7 +68,7 @@ def plot_vdisp_vs_Ap(lenses,kw_aperture,nm = "tmp/vdisp_vs_Aperture.png"):
                 print("Gal not present")
                 continue
             assert len(vdisp_stars)==1
-            theta_E_sis = get_tE_sis(vdisp_stars,Dls=lensgal.Dls,Ds=lensgal.Ds)
+            theta_E_sis = _get_tE_SIS(vdisp_stars,Dls=lensgal.Dls,Ds=lensgal.Ds)
             ratio_tE    = lensgal.thetaE.value/theta_E_sis
             ratios_tE.append(ratio_tE)
 

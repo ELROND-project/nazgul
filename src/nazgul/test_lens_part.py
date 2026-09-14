@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from python_tools.image_manipulation import plot_comp_two_images
 
-from nazgul.particle_galaxy import PartGal
+from nazgul.Translator.translator import PartGal
 from nazgul.mount_doom.generate_particle_lens_dom import LensPart,wrapper_get_rnd_lens
 
-from nazgul.lens_part_los import get_kw_los
+from nazgul.lens_part_LOS import get_kw_los
 
 from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
 

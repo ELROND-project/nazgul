@@ -11,7 +11,7 @@ from nazgul.Translator.translator import PartGal,Gal2kwMXYZ
 from nazgul.mount_doom.generate_gal_lens import GalLens
 
 # prev test
-from nazgul.test_vdisp import get_tEsis
+from nazgul.test_vdisp import get_tE_SIS
 from nazgul.test_rad_gal import half_mass_radius
 
 #sim,Gn,SGn,snap = "RefL0012N0188",1,0,"23"
@@ -31,7 +31,7 @@ lensgal = GalLens(Gal,2)
 lensgal.unpack()
 lensgal.run()
 
-tEsis = get_tEsis(lensgal)
+tEsis = get_tE_SIS(lensgal)
 
 # SIS gal with comp. thetaT
 SISGal = PartGal({"n_smpl":1e6,"theta_E":tEsis,"z_lens":Gal.z},sim="SIS",simsuite="ANL_TEST") 
