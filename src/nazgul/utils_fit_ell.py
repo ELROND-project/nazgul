@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from photutils.isophote import EllipseGeometry,EllipseSample
 
 # Fitting ellipses - fast and easy 
 # to have a first parameter estimates
@@ -50,7 +51,6 @@ def fit_ellipse_moments(image, threshold=None):
 
     # angle (radians)
     pa = np.arctan2(eigvecs[1, 0], eigvecs[0, 0])
-
     return {
         "x0": x0,
         "y0": y0,
@@ -58,6 +58,53 @@ def fit_ellipse_moments(image, threshold=None):
         "b": b,
         "pa": pa
     }
+
+
+def find_valid_sma0(image, x0, y0, eps, pa, sma, growth=1.3,
+                     max_sma=None, max_tries=30):
+    """Grow sma0 until the local gradient at that isophote is finite and nonzero."""
+    sma_init = sma
+    for _ in range(max_tries):
+        geom = EllipseGeometry(x0, y0, sma, eps, pa)
+        sample = EllipseSample(image, sma, geometry=geom)
+        sample.update(fixed_parameters=geom.fix)
+        grad = sample.gradient
+        if grad is not None and np.isfinite(grad) and grad != 0.0:
+            return sma
+        sma *= growth
+        if max_sma is not None and sma > max_sma:
+            break
+    raise RuntimeError(f"No valid sma0 found starting from {sma_init}")
+
+
+def get_initial_kwfit(image,threshold=None):
+    image = np.clip(image, 0, None)  # moments need non-negative weights
+
+    # Optional: restrict to significant region
+    if threshold is not None:
+        mask = image > threshold
+    else:
+        mask = np.ones_like(image, dtype=bool)
+    image *= mask
+    y, x = np.indices(image.shape)
+    total = image.sum()
+    xc = (image * x).sum() / total
+    yc = (image * y).sum() / total
+    xx = (image * (x - xc)**2).sum() / total
+    yy = (image * (y - yc)**2).sum() / total
+    xy = (image * (x - xc) * (y - yc)).sum() / total
+
+    theta = 0.5 * np.arctan2(2 * xy, xx - yy)
+    lam1 = 0.5*(xx + yy) + np.sqrt(((xx - yy)/2)**2 + xy**2)
+    lam2 = 0.5*(xx + yy) - np.sqrt(((xx - yy)/2)**2 + xy**2)
+    eps = 1 - np.sqrt(lam2 / lam1)
+    sma0 = np.sqrt(lam1)  # rough scale; try a small multiple too, e.g. 0.5x-2x
+    kw_initfit = {"x0":xc, "y0":yc, "eps":eps, "pa":theta, "sma":sma0}
+
+    sma0_valid =  find_valid_sma0(image=image,**kw_initfit)
+    kw_initfit["sma"] = sma0_valid
+    return kw_initfit
+    
     
 def fit_ellipse_isocontour(image, level):
     mask = image >= level
@@ -156,6 +203,7 @@ def get_kw_prms(ellipses):
     return kw_prms
 
 # useful for isodensity fit:
+"""
 def _get_initial_kwfit(kw_prms,sma_in=5):
     sma = kw_prms["sma"]
     # define accurate initial parameters
@@ -177,7 +225,7 @@ def get_initial_kwfit(map,sma_in=5,levels=None,nlevels=60,plot=False):
     kw_prms = get_kw_prms(ellipses)
     kw_init = _get_initial_kwfit(kw_prms,sma_in=sma_in)
     return kw_init
-    
+"""
 if __name__=="__main__":
     raise NotImplementedError("Example of use - read, do not run")
     

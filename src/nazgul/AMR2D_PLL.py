@@ -278,8 +278,8 @@ def cell_in_extents(c,ext):
      if ext[0]<x<ext[1] and ext[2]<y<ext[3]:
         return True
      return False
-        
-def plot_AMR_cells(kw_2Ddens,kw_extents=None):
+
+def plot_AMR_cells(kw_2Ddens,kw_extents=None,log10=True):
     fig, ax = plt.subplots(figsize=(8,8))    
     xc,yc = kw_2Ddens["MD_coords"] #kpc
     cells = kw_2Ddens["AMR_cells"]
@@ -332,26 +332,22 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
         x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
     except ValueError as e:
         raise e
-    x0   *=length_unit
-    x1   *=length_unit
-    y0   *=length_unit
-    y1   *=length_unit
-    mass *=mass_unit
-    dns  *=dns_unit
-    
-    vmax,vmin = np.max(dns.value),np.min(dns.value)
+
+    if log10:
+        dns = np.log10(dns)
+    vmax,vmin = np.max(dns),np.min(dns)
     cmap = plt.get_cmap("hot")
     norm = Normalize(vmin=vmin, vmax=vmax)
 
     patches_list = [
         patches.Rectangle(
-            (x0[i].value, y0[i].value),
-            x1[i].value - x0[i].value,
-            y1[i].value - y0[i].value)
+            (x0[i], y0[i]),
+            x1[i] - x0[i],
+            y1[i] - y0[i])
         for i in range(len(cells))
     ]
 
-    colors = cmap(norm([d.value for d in dns]))
+    colors = cmap(norm([d for d in dns]))
 
     pc = PatchCollection(
         patches_list,
@@ -360,8 +356,8 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
         linewidth=0.5)
 
     ax.add_collection(pc)
-    ax.set_xlim(np.min(x0.value),np.max(x1.value))
-    ax.set_ylim(np.min(y0.value),np.max(y1.value))
+    ax.set_xlim(np.min(x0),np.max(x1))
+    ax.set_ylim(np.min(y0),np.max(y1))
 
     ax.set_aspect("equal")
     ax.set_xlabel("x ["+str(length_unit)+"]")
@@ -370,7 +366,11 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
     sm = ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])  # required for colorbar
     cbar = fig.colorbar(sm, ax=ax)
-    cbar.set_label(f"Density [{dns_unit}]")
+    if log10:
+        lbl_dns = r"log$_{10}$(Density ["+str(dns_unit)+"])"
+    else:
+        lbl_dns = f"Density [{dns_unit}]"
+    cbar.set_label(lbl_dns)
     return fig,ax
     
 def _test_AMR():

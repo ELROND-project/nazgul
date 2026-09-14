@@ -2,7 +2,7 @@ from pathlib import Path
 from python_tools.tools import mkdir
 
 import nazgul.configurations as conf
-from   nazgul.Translator import std_sim,std_simsuite,test_sim,tutorial_sim
+from   nazgul.Translator import std_sim,std_subsim,std_simsuite,test_sim,tutorial_sim
 """
 Data structure:
 ---------------
@@ -39,7 +39,7 @@ def get_simsuite_dir(simsuite=std_simsuite,data_dir=std_data_dir):
     simsuite_dir = data_dir/simsuite # which simulation suite
     return simsuite_dir
 
-def get_sim_dir(sim=std_sim,subsim=None,
+def get_sim_dir(sim=std_sim,subsim=std_subsim,
                 simsuite=std_simsuite,data_dir=std_data_dir):
     simsuite_dir = get_simsuite_dir(simsuite=simsuite,
                                     data_dir=data_dir)
@@ -49,20 +49,20 @@ def get_sim_dir(sim=std_sim,subsim=None,
         sim_dir  = sim_dir/str(subsim)
     return sim_dir
 
-def get_catdir(sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_catdir(sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     sim_path = get_sim_dir(sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
     catdir = sim_path/"CatGal"
     mkdir(catdir)
     return catdir
     
-def get_catlensdir(sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_catlensdir(sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     # not sure if needed
     sim_path = get_sim_dir(sim=sim,subsim=subsim,simsuite=std_simsuite,data_dir=data_dir)
     catdir = sim_path/"CatLens"
     mkdir(catdir)
     return catdir
 
-def get_snap_dir(snap,sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_snap_dir(snap,sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where the simulation particle data is stored
     """
@@ -72,7 +72,7 @@ def get_snap_dir(snap,sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std
     snap_dir = sim_dir/f"snap_{snap}"
     return snap_dir
 
-def get_part_dir(snap=None,sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_part_dir(snap=None,sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where the simulation particle data is stored
     """
@@ -94,7 +94,7 @@ def get_part_dir(snap=None,sim=std_sim,subsim=None,simsuite=std_simsuite,data_di
 # After this it becomes sim dependent -> refer to the translator
 from nazgul.Translator.pathfinder import translate_galname
 
-def get_gal_maindir(kw_gal,snap,sim=std_sim,subsim=None,
+def get_gal_maindir(kw_gal,snap,sim=std_sim,subsim=std_subsim,
                     simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where all galaxy results are stored
@@ -107,7 +107,7 @@ def get_gal_maindir(kw_gal,snap,sim=std_sim,subsim=None,
     gal_dir  = snap_dir/galname
     return gal_dir
 
-def get_gal_dir(kw_gal,snap,sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_gal_dir(kw_gal,snap,sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where particle galaxy is stored
     """
@@ -118,7 +118,7 @@ def get_gal_dir(kw_gal,snap,sim=std_sim,subsim=None,simsuite=std_simsuite,data_d
 
 
 nm_proj_dir = "Projection"
-def get_proj_dir(kw_gal,snap,sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_proj_dir(kw_gal,snap,sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where projection of the galaxy is stored
     """
@@ -133,30 +133,30 @@ def get_proj_dir_from_galdir(galdir):
     proj_dir    = gal_maindir/nm_proj_dir
     return proj_dir   
 
-def get_lens_maindir(kw_gal,snap,sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+def get_lens_maindir(kw_gal,snap,sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where lens computations of the galaxy are stored (main dir)
     """
     gal_maindir = get_gal_maindir(kw_gal=kw_gal,snap=snap,
                                   sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
-    lens_dir     = gal_maindir/"Lens"
+    lens_dir     = gal_maindir/"LensSystem"
     return lens_dir
 
 def get_lens_subdir(kw_gal,snap,
                     subdir="./",
-                    sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+                    sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     Where lens computations of the galaxy are stored 
     (sub dir - dep. on algorithm used, by default == main lens dir)
     """
-    lens_maindir = get_lens_maindir(kw_gal=kw_gal,snap=snap,
+    lens_maindir = get_gal_maindir(kw_gal=kw_gal,snap=snap,
                                   sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
     lens_subdir  = lens_maindir/subdir 
     return lens_subdir
 
 nm_lowdir = "Sub"
 def get_lens_lowdir(kw_gal,snap,subdir="./",
-                    sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+                    sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     lens computation dir (low-level, only particles)
     """
@@ -173,7 +173,7 @@ def get_lens_lowdir_from_galdir(galdir):
 
 nm_highdir = "Dom"
 def get_lens_highdir(kw_gal,snap,subdir="./",
-                    sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
+                    sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_dir=std_data_dir):
     """
     lens computation dir (high-level, lens model) 
     """

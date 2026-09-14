@@ -1,13 +1,16 @@
 # Model all lenses where LOS is not simulated but w. LOS in the model
-# to study the internal shear (á la Etherington)
+# we add multipoles and see if we manage to reduce the LOS tension (still sim to be 0)
 import os,gc
 import argparse
+import warnings
 import numpy as np
 import sys,json,dill
 from corner import corner
 import matplotlib.pyplot as plt
 
 from lenstronomy.Plots import chain_plot
+
+from python_tools.get_res import load_whatever
 
 from nazgul.plot_PL import plot_kappamap
 from nazgul.lens_part_LOS import get_kw_los
@@ -22,9 +25,9 @@ from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_bur
 from python_tools.tools import mkdir
 from python_tools.tools_WOI import set_workin_on_it
 
-lens_model_list   = ['EPL','LOS_MINIMAL']
+lens_model_list   = ['EPL_BOXYDISKY_ELL','LOS_MINIMAL']
 source_model_list = ["SERSIC"]
-res_dir_base      = model_res_base/"simNoShear/"
+res_dir_base      = model_res_base/"SNS_multipole"
 mkdir(res_dir_base)
 
 def get_kwargs_params(lens):
@@ -36,20 +39,22 @@ def get_kwargs_params(lens):
     kwargs_lens_init = [{'theta_E': tE + np.random.normal(0,.1,1)[0]*tE, 
                     'e1': 0, 'e2': 0, 
                     'gamma': 2., 
-                    'center_x': 0., 'center_y': 0}]
+                    'center_x': 0., 'center_y': 0,
+                    'a4_a':0}]
     kwargs_source_init = [{'R_sersic': 0.03, 'n_sersic': 1., 'center_x': 0, 'center_y': 0}]
     
     # initial spread in parameter estimation #
     kwargs_lens_sigma = [{'theta_E': 0.3, 
                           'e1': 0.2, 'e2': 0.2, 'gamma': .2, 
-                          'center_x': 0.1, 'center_y': 0.1}]
+                          'center_x': 0.1, 'center_y': 0.1,
+                           'a4_a':0.05}]
     kwargs_source_sigma = [{'R_sersic': 0.1, 'n_sersic': .5, 'center_x': .1, 'center_y': 0.1}]
     
     # hard bound lower limit in parameter space #
-    kwargs_lower_lens = [{'theta_E': 0, 'e1': -0.5, 'e2': -0.5, 'gamma': 1.5, 'center_x': -10., 'center_y': -10}]
+    kwargs_lower_lens = [{'theta_E': 0, 'e1': -0.5, 'e2': -0.5, 'gamma': 1.5, 'center_x': -10., 'center_y': -10,'a4_a':-0.1}]
     kwargs_lower_source = [{'R_sersic': 0.001, 'n_sersic': .5, 'center_x': -10, 'center_y': -10}]
     # hard bound upper limit in parameter space #
-    kwargs_upper_lens = [{'theta_E': 3*tE, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10}]
+    kwargs_upper_lens = [{'theta_E': 3*tE, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10,'a4_a':+0.1}]
     kwargs_upper_source = [{'R_sersic': 10, 'n_sersic': 5., 'center_x': 10, 'center_y': 10}]
 
     # add LOS params
@@ -160,27 +165,34 @@ if __name__=="__main__":
         raise RuntimeError("Give a valid run_type or implement it your own")
 
     # picked by hand "bad" lenses ->
-    lenses2skip = ["LS_Lens_Gn75SGn0_Prj1","LS_Lens_Gn4SGn0_Prj2","LS_Lens_Gn4SGn0_Prj0","LS_Lens_Gn14SGn0_Prj1",
-                   "LS_Lens_Gn71SGn0_Prj2","LS_Lens_Gn7SGn1_Prj2","LS_Lens_Gn15SGn1_Prj0","LS_Lens_Gn15SGn1_Prj0",
-                   "LS_Lens_Gn6SGn0_Prj2","LS_Lens_Gn1SGn2_Prj1","LS_Lens_Gn42SGn0_Prj1","LS_Lens_Gn18SGn0_Prj2",
-                   "LS_Lens_Gn18SGn0_Prj0","LS_Lens_Gn18SGn0_Prj0","LS_Lens_Gn18SGn0_Prj2","LS_Lens_Gn22SGn1_Prj2",
-                   "LS_Lens_Gn22SGn1_Prj1","LS_Lens_Gn66SGn0_Prj1","LS_Lens_Gn45SGn0_Prj0","LS_Lens_Gn33SGn0_Prj2"]
+    lenses2skip = []
     
     kw_get_all_gallens = {"sim":sim,
                           "subsim":subsim,
-                          "simsuite":simsuite,
-                          "snaps":snaps}
+                           "simsuite":simsuite,
+                            "snaps":snaps}
     res_dir = get_res_dir(res_dir_base,simsuite,sim,
                           subsim=subsim,run_type=run_type)
 
-
     print("\nGetting catalogue of lenses 2 model\n###################\n")
-    gal_lenses  = get_lenses2model(res_dir=res_dir,
-                                   reload=True,
-                                   kw_get_all_gallens=kw_get_all_gallens,
-                                   n_lenses=np.nan, # has to load all of them anyway
-                                   min_thetaE=min_thetaE,
-                                   skip_lenses=lenses2skip)
+    if run_type==0:
+        gal_lenses  = get_lenses2model(res_dir=res_dir,
+                                       reload=True,
+                                       kw_get_all_gallens=kw_get_all_gallens,
+                                       n_lenses=np.nan, # has to load all of them anyway
+                                       min_thetaE=min_thetaE,
+                                       skip_lenses=lenses2skip)
+    else:
+        warnings.warn("VERY patchy way to deal with the issue, but fast")
+        cat = load_whatever(res_dir/"cat_lens2model.dll")
+        _gal_lenses = [ load_whatever(c) for c in cat["lens_cat"][:n_lenses]]
+        gal_lenses = []
+        for g in _gal_lenses:
+            g.unpack()
+            #from nazgul.stat_lenses import monkey_patch_naming
+            #monkey_patch_naming(g)
+            g.run()
+            gal_lenses.append(g)
     print("\nCatalogue of lenses 2 model obtained\n###################\n")
     
     for i,gal_lens in enumerate(gal_lenses): 

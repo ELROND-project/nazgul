@@ -1,3 +1,4 @@
+raise RuntimeWarning("not correctly implemented  - go trough tranlsator instead of finding the particles 'on your own' eg. Gal.dm")
 #WIP
 import warnings
 import numpy as np
@@ -16,7 +17,7 @@ from nazgul.Translator.translator import Gal2kwMXYZ_part,get_sim_func
 projs = ["x","y","z"]
 def plot_gal(Gal,bins = 100, save_to_tmp: bool = True):
     gal_dir = Gal.gal_dir 
-    CoM     = Gal.centre/(Gal.xy_propr2comov) 
+    #CoM     = Gal.centre/(Gal.xy_propr2comov) 
     xyz_dm  = Gal.dm["coords"].T
     xyz_str = Gal.stars["coords"].T
     xyz_gas = Gal.gas["coords"].T
@@ -31,7 +32,7 @@ def plot_gal(Gal,bins = 100, save_to_tmp: bool = True):
         x_dm  = xyz_dm[i]
         x_str = xyz_str[i]
         x_gas = xyz_gas[i]
-        x_cm  = CoM[i]
+        #x_cm  = CoM[i]
         #x_bh  = xyz_bh[i]
             
         m_str = Gal.stars["mass"]
@@ -45,7 +46,7 @@ def plot_gal(Gal,bins = 100, save_to_tmp: bool = True):
         axis[i].set_yscale("log")
         axis[i].set_ylabel(r"M [M$_\odot$]")
         axis[i].set_xlabel(f"{ax_nm.upper()} coord [Mpc]")
-        axis[i].axvline(x_cm,ls="--",c="r",label="Tot. CoM")
+        #axis[i].axvline(x_cm,ls="--",c="r",label="Tot. CoM")
         if i==0:
             axis[i].legend()
         

@@ -1,3 +1,5 @@
+# very simple question:
+# does multipole reduce tension with gamma_los?
 import gc
 import glob
 import warnings
@@ -30,6 +32,15 @@ def get_g1g2_from_lens(lens,full_chain):
                "sg1":sg1,"sg2":sg2,
                "glos":glos,"sglos":sglos}
     return kw_g1g2
+
+
+def get_lenses_names(path_lenses,lenses2ignore=[]):
+    lenses_names = []
+    for path in glob.glob(path_lenses):
+        if any(ln2i in str(path) for ln2i in lenses2ignore):
+            continue
+        lenses_names.append(Path(path).name)
+    return np.array(lenses_names)
 
 def _get_g1g2(path_lenses,lenses2ignore=[]):
     g1g2T,glosT = [],[]
@@ -101,13 +112,27 @@ def compute_tension(out,truth):
     return tension
     
 
-        
+def str_mod(model_name):
+    #hard coded for plot
+    if model_name=="simNoShear_gausstE":
+        str_m = "EPL + LOS Shear"
+    elif model_name=="SNS_multipole":
+        str_m = "EPL + LOS Shear + m4"
+    elif model_name=="SNS_m134_gausstE":
+        str_m = "EPL + LOS Shear + m134"
+    else:
+        warnings.warn("str_mod not defined, defaulting to actual name")
+        str_m = model_name
+    return str_m
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="LOS shear results for lens model")
 
-    parser.add_argument('-m','--model',type=str,
-                        dest="model",
-                        help=f"Name of type of model - accepted: {name_models}")
+    parser.add_argument('-m1','--model1',type=str,
+                        dest="model1",
+                        help=f"Name of model 1 - accepted: {name_models}")
+    parser.add_argument('-m2','--model2',type=str,
+                        dest="model2",
+                        help=f"Name of model 2 - accepted: {name_models}")
 
     parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
     parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
@@ -117,7 +142,8 @@ if __name__=="__main__":
     parser.add_argument('-mc','--min_chi2',dest="min_chi2",
                         default=None,type=float,help=f"Minimum chi^2 threshold")
     args       = parser.parse_args()
-    model    = args.model
+    model1    = args.model1
+    model2    = args.model2
     #snaps    = args.snaps # by def. take all snaps
     sim      = args.sim
     subsim   = args.subsim
@@ -130,77 +156,77 @@ if __name__=="__main__":
         min_chi2_str = f"_minX2_{int(min_chi2)}"
     
     lenses2ignore= [""]
-    res_dir = get_res_dir(model,simsuite=simsuite,sim=sim,subsim=subsim)
-    path_lenses = str(res_dir/"snap_*")
-    nm_g1g2_data = res_dir/"g1g2.dll"
-    kw_glos_tot  = get_g1g2(path_lenses,nm_g1g2_data,lenses2ignore=lenses2ignore,reload=reload)
-    chi2             = kw_glos_tot["chi2"]
-    g1,g2,sg1,sg2    = kw_glos_tot["g1g2"]
-    glos,s_glos = kw_glos_tot["glos"]
+    res_dir1 = get_res_dir(model1,simsuite=simsuite,sim=sim,subsim=subsim)
+    res_dir2 = get_res_dir(model2,simsuite=simsuite,sim=sim,subsim=subsim)
+    path_lenses1 = str(res_dir1/"snap_*")
+    nm_g1g2_data1 = res_dir1/"g1g2.dll"
+    kw_glos_tot1  = get_g1g2(path_lenses1,nm_g1g2_data1,lenses2ignore=lenses2ignore,reload=reload)
+    glos1,s_glos1 = kw_glos_tot1["glos"]
+    chi2_1        = kw_glos_tot1["chi2"]
+    lenses_names1 = load_whatever(nm_g1g2_data1)['lens_path']
+    lenses_names1 = np.array([str(l.name) for l in lenses_names1])
 
     if min_chi2 is not None:
-        g1  = g1[chi2<min_chi2]
-        g2  = g2[chi2<min_chi2]
-        sg1 = sg1[chi2<min_chi2]
-        sg2 = sg2[chi2<min_chi2]
-        glos = glos[chi2<min_chi2]
-        s_glos = s_glos[chi2<min_chi2]
-        chi2 = chi2[chi2<min_chi2]
-    fig_g1g2,ax_g1g2 = plt.subplots(1)
-    ax_g1g2.errorbar(g1,g2,xerr= sg1,yerr=sg2,fmt='',marker='',mew=0,ls="",
-                           ecolor="k",elinewidth=.8,label=r"N$_{\rm{models}}$="+str(len(g1)))
-    im0 = ax_g1g2.scatter(g1,g2,c=chi2,cmap="viridis")
-    divider = make_axes_locatable(ax_g1g2)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig_g1g2.colorbar(im0, cax=cax, orientation='vertical',label=r"$\chi^2_{\rm{red.}}$")
+        glos1 = glos1[chi2_1<min_chi2]
+        s_glos1 = s_glos1[chi2_1<min_chi2]
+        lenses_names1 = lenses_names1[chi2_1<min_chi2]
 
-    g1_wa = np.average(g1,weights=1/np.array(sg1))
-    g2_wa = np.average(g2,weights=1/np.array(sg2))
-    ax_g1g2.axvline(g1_wa,ls="-.",c="g",label=r"<$\gamma_1$> "+str(np.round(g1_wa,2)))
-    ax_g1g2.axhline(g2_wa,ls="-.",c="g",label=r"<$\gamma_2$> "+str(np.round(g2_wa,2)))
-    ax_g1g2.axvline(0,ls="-",c="grey",alpha=.3)
-    ax_g1g2.axhline(0,ls="-",c="grey",alpha=.3)
-    ax_g1g2.set_xlabel(r"$\gamma_{\rm{LOS, 1}}$")
-    ax_g1g2.set_ylabel(r"$\gamma_{\rm{LOS, 2}}$")
-
-    ax_g1g2.set_title(r"Scatter of $\gamma_{\rm{LOS}}$ components for "+str(model) )  
-    nm_g1g2_fig = res_dir/f"g1g2_scatter{min_chi2_str}.png"
-    ax_g1g2.legend()
-    fig_g1g2.savefig(nm_g1g2_fig)
-    print(f"Saving {nm_g1g2_fig}")
-    plt.close(fig_g1g2)
-
-    
-    plt.hist(glos,label=r"N$_{\rm{models}}$="+str(len(g1)),bins=24)
-    plt.xlabel(r"$\gamma_{\rm{LOS}}$")
-    plt.title(r"Histogram of $\gamma_{\rm{LOS}}$ for "+str(model))  
-    plt.legend()
-    nm_glos_fig = res_dir/f"glos_hist{min_chi2_str}.png"
-    plt.savefig(nm_glos_fig)
-    print(f"Saving {nm_glos_fig}")
-    plt.close()
-
-    plt.errorbar(chi2,glos,yerr=s_glos,fmt="ko")
-    plt.title(r"$\gamma_{\rm{LOS}}$ for "+str(model)+r" wrt $\chi^2_{\rm{red.}}$")  
-    plt.xlabel(r"$\chi^2{\rm{red.}}$")
-    plt.ylabel(r"$\gamma_{\rm{LOS}}$")
-    
-    nm_glosChi2_fig = res_dir/f"glosVschi2{min_chi2_str}.png"
-    plt.savefig(nm_glosChi2_fig)
-    print(f"Saving {nm_glosChi2_fig}")
-    plt.close()
-    
     #####
     # hist of tension
     #
     true_glos = 0
     warnings.warn("Bad coding - truth for now set by hand to 0")
-    glos_tension = compute_tension(out=[glos,s_glos],truth=true_glos)
-    plt.hist(glos_tension,label=r"N$_{\rm{models}}$="+str(len(g1)),bins=24)
-    plt.xlabel(r"$\tau(\gamma_{\rm{LOS}})$")
-    plt.title(r"Histogram of Tension of $\gamma_{\rm{LOS}}$ for "+str(model))  
+    glos_tension1 = compute_tension(out=[glos1,s_glos1],truth=true_glos)
+
+    path_lenses2 = str(res_dir2/"snap_*")
+    #lenses_names2 = get_lenses_names(path_lenses2)
+    nm_g1g2_data2 = res_dir2/"g1g2.dll"
+    kw_glos_tot2  = get_g1g2(path_lenses2,nm_g1g2_data2,lenses2ignore=lenses2ignore,reload=reload)
+    glos2,s_glos2 = kw_glos_tot2["glos"]
+    chi2_2        = kw_glos_tot2["chi2"]
+    lenses_names2 = load_whatever(nm_g1g2_data2)['lens_path']
+    lenses_names2 = np.array([str(l.name) for l in lenses_names2])
+    if min_chi2 is not None:
+        glos2 = glos2[chi2_2<min_chi2]
+        s_glos2 = s_glos2[chi2_2<min_chi2]
+        lenses_names2 = lenses_names2[chi2_2<min_chi2]
+    #####
+    # hist of tension
+    #
+    true_glos = 0
+    warnings.warn("Bad coding - truth for now set by hand to 0")
+    glos_tension2 = compute_tension(out=[glos2,s_glos2],truth=true_glos)
+    gt1_list,gt2_list  = [],[] 
+    for i1,l1 in enumerate(lenses_names1):
+        if l1 in lenses_names2:
+            i2 = list(lenses_names2).index(l1)
+            gt1 = glos_tension1[i1]
+            gt1_list.append(gt1)
+            gt2 = glos_tension2[i2]
+            gt2_list.append(gt2)
+
+    gt1_m = np.mean(gt1_list)
+    gt2_m = np.mean(gt2_list)
+    model1_str = str_mod(model1)
+    model2_str = str_mod(model2)
+    for i1,(gt1,gt2) in enumerate(zip(gt1_list,gt2_list)):
+            if i1==0:
+                tau_str = r" $\left\langle \tau \right\rangle$="
+                label1 = model1_str+tau_str+str(np.round(gt1_m,1))
+                label2 = model2_str+tau_str+str(np.round(gt2_m,1))
+            else:
+                label1 = None
+                label2 = None
+            lnm = lenses_names2[i1].split("LS_Lens_")[1]
+            plt.scatter(lnm,gt1,c="r",label=label1)
+            plt.axhline(gt1_m,c="r",ls="--")
+            plt.scatter(lnm,gt2,c="b",label=label2)
+            plt.axhline(gt2_m,c="b",ls="--")
+    plt.ylabel(r"$\tau$")
+    plt.title(r"Tension with expected $\gamma_{\rm{LOS}}$")
+    plt.xticks(rotation=45)
     plt.legend()
-    nm_glos_tens_fig = res_dir/f"glos_tension_hist{min_chi2_str}.png"
-    plt.savefig(nm_glos_tens_fig)
-    print(f"Saving {nm_glos_tens_fig}")
-    plt.close()
+    plt.tight_layout()
+    nm = f"results/models/multipoles_tension_m1{model1}_m2{model2}{min_chi2_str}.png"
+    plt.savefig(nm)
+    print(f"Saving {nm}")

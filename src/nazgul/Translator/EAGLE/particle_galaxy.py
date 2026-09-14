@@ -222,7 +222,7 @@ class SimPartGal(BasicPartGal):
         print("... unpacked Particle Galaxy")
         return 
         
-    def _unpack(self):
+    def _unpack(self,verbose=True):
         """Reconstruct attributes AFTER COMPUTATION
         that were intentionally removed before serialization.
         """

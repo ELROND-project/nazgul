@@ -11,8 +11,10 @@ from glob import glob
 from pathlib import Path
 from textwrap import wrap
 from copy import copy,deepcopy
-import matplotlib.pyplot as plt
+from importlib import import_module
+
 import matplotlib
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -27,9 +29,10 @@ from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.Translator import std_sim,std_simsuite,std_subsim,get_simsuite_from_code
 # debugging memory leak tools 
 from python_tools.memory_leak_tools import log_memory,log_top_allocs
-from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot
+from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot,model_res_base
 
 matplotlib.use('Agg') 
 
@@ -107,7 +110,7 @@ def _glob_exactly_1(cnd_name,_str_info=""):
     else:
         return candidate[0]
 
-def get_all_lens_model_paths(res_dir,snaps=[]):
+def get_all_lens_model_paths(res_dir,snaps=[],check_if_workin_on_it=True):
     if snaps ==[]:
         pth_modlenses_res = glob(f"{res_dir}/snap*/kw_res.*")
     else:
@@ -118,10 +121,11 @@ def get_all_lens_model_paths(res_dir,snaps=[]):
     pth_modlenses     = [Path(pth).parent for pth in pth_modlenses_res]
     if pth_modlenses==[]:
         raise RuntimeError(f"No modelled lenses found in {res_dir}")
-    flag = np.invert([is_someone_workin_on_it(i) for i in pth_modlenses])
-    if np.any(flag):
-        pth_modlenses = np.array(pth_modlenses)[flag]
-        pth_modlenses = pth_modlenses.tolist()
+    if check_if_workin_on_it:
+        flag = np.invert([is_someone_workin_on_it(i) for i in pth_modlenses])
+        if np.any(flag):
+            pth_modlenses = np.array(pth_modlenses)[flag]
+            pth_modlenses = pth_modlenses.tolist()
     return pth_modlenses
     
 
@@ -172,10 +176,15 @@ def get_model_title(model):
         ttl = r"LOS not simulated and external shear modelled"
     elif model=="noLOS_g12":
         ttl = r"LOS not simulated and external shear modelled (polar shear)"
-    elif model=="simNoShear":
+    elif model=="simNoShear" or "SNS" in model:
         ttl = r"LOS not simulated, but modelled - nothing fixed!"
+    elif model=="simNoShear_gausstE":
+        ttl = r"LOS not simulated, but modelled - nothing fixed! (gaussian theta_E prior)"
     else:
         raise RuntimeError("Define title of model")
+    if "multipole" in model:
+        ttl +=" with multipoles"
+    
     return ttl
 
 def plot_los_outVsin(lenses,_rnd=3):
@@ -575,10 +584,11 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
         kw_los     = kw_add_lns["kwargs_lens"][kw_add_lns["lens_model_list"].index("LOS")]
         gamma_los1_true = kw_los["gamma1_od"] + kw_los["gamma1_os"] - kw_los["gamma1_ds"]
         gamma_los2_true = kw_los["gamma2_od"] + kw_los["gamma2_os"] - kw_los["gamma2_ds"]
-    elif "fitLOS" in model or "noLOS" in model or "simNoShear" in model:
+    elif "fitLOS" in model or "noLOS" in model or "simNoShear" in model or "SNS" in model:
         #TODO : better implementation of this
         gamma_los1_true,gamma_los2_true = 0,0
-        
+    else:
+        raise RuntimeError(f"{model} not defined for gamma_los_truth")
     ax.axvline(gamma_los1_true,ls="-",label="Truth "+clmns[0]+f"= {np.round(gamma_los1_true,_rnd)}",c="r")
     ax.axhline(gamma_los2_true,ls="-",label="Truth "+clmns[1]+f"= {np.round(gamma_los2_true,_rnd)}",c="r")
         
@@ -596,28 +606,53 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
     
 warnings.filterwarnings("ignore")
 
-name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmgaLos","simNoShear"]
-def get_res_dir(model):
-    if model=="noLOS":
-        from nazgul.Modelling.model_ext_shear import res_dir_base as res_dir
-    elif model=="noLOS_g12":
-        from nazgul.Modelling.model_ext_shear_g12 import res_dir_base as res_dir
-    elif model=="fitLOS":
-        from nazgul.Modelling.model_fitLOS import res_dir_base as res_dir
-    elif model=="allLOS":
-        from nazgul.Modelling.model_allLOS import res_dir_base as res_dir
-    elif model=="fitLOS_fixedOD":
-        from nazgul.Modelling.model_fitLOS_fixedOD import res_dir_base as res_dir
-    elif model=="fitLOS_fixedOD_fixedOmgaLos":
-        from nazgul.Modelling.model_fitLOS_fixedOD_fixedOmegaLos import res_dir_base as res_dir
-    elif model=="simNoShear":
-        from nazgul.Modelling.model_simNoShear import res_dir_base as res_dir
-    else:
-        if model in name_models:
-            print("To implement") 
-        raise RuntimeError(f"model {model} not known")
-    return res_dir
+name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE"]
 
+kw_names_models = {}
+for nm in name_models:
+    if nm=="noLOS":
+        kw_names_models[nm] = "model_ext_shear"
+    elif nm=="noLOS_g12":
+        kw_names_models[nm] = "model_ext_shear_g12"
+    else:
+        kw_names_models[nm] = f"model_{nm}"
+kw_models_names =  {v: k for k, v in kw_names_models.items()}
+
+
+def get_res_dir(model,simsuite=std_simsuite,sim=std_sim,subsim=std_subsim):
+    model_name = kw_names_models[model]
+    try:
+        model_module = import_module(f'.{model_name}',"nazgul.Modelling")
+        get_res_dir = model_module.get_res_dir
+        res_dir_base = model_module.res_dir_base
+    except:
+        if model in name_models:
+            print(f"{model} to implement") 
+        raise RuntimeError(f"model {model} not known")
+    res_dir = get_res_dir(res_dir_base,simsuite,sim,subsim=subsim,run_type=0)
+    return res_dir 
+
+
+def get_model_from_res_dir(res_dir,model_res=model_res_base):
+    model_subpath = str(Path(model_res).name)+"/" #"models/" by def.
+    _sub_res_dir = str(res_dir).split(model_subpath)[1]
+    _model_name  = _sub_res_dir.split("/")[0]
+    model_name   = kw_models_names["model_"+_model_name] 
+    #verify
+    _sub_res_dir_split = Path(_sub_res_dir.split("/")[1]).parts[0]
+    simsuite_code =  _sub_res_dir_split.split("_")[0]
+    simsuite = get_simsuite_from_code(simsuite_code)
+    sim_subsim = "_".join(_sub_res_dir_split.split("_")[1:])
+    res_dir_recovered = get_res_dir(model_name,simsuite=simsuite,sim=sim_subsim,
+                subsim=None)
+    res_dir = str(res_dir)
+    res_dir_recovered = str(res_dir_recovered)
+    if len(res_dir)>len(res_dir_recovered):
+        assert res_dir_recovered in res_dir
+    else:
+        assert res_dir in res_dir_recovered
+    return model_name
+    
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot Combined results for all the lens model of given run")
     parser.add_argument('-m','--model',type=str,
@@ -627,17 +662,24 @@ if __name__=="__main__":
                         default=False, action="store_true",
                         help=f"If true, overlay ellipticity posterior")
     parser.add_argument('-snap','--snap',dest="snaps",default=[],nargs="+",help="(Optional) Define a specific snap list")
+    parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
     parser.add_argument('-lpp','--lines_per_page', dest="lines_per_page",
                         default=5, type=int,
                         help="Number of lens rows per page in combined PDF (default=5)")
+
     args     = parser.parse_args()
     model    = args.model
     snaps    = args.snaps
+    sim      = args.sim
+    subsim   = args.subsim
+    simsuite = args.simsuite
     overlay_ellipticity = args.overlay_ellipticity
     lines_per_page      = args.lines_per_page
 
     _rnd = 3
-    res_dir = get_res_dir(model)
+    res_dir = get_res_dir(model,simsuite=simsuite,sim=sim,subsim=subsim)
     nm_combined = f"{res_dir}/combined_result.pdf"
 
     lens_resdir_paths = get_all_lens_model_paths(res_dir,snaps=snaps)  # paths only, no loading

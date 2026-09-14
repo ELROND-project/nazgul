@@ -10,14 +10,14 @@ from swiftgalaxy import SWIFTGalaxy, SOAP
 from swiftsimio import SWIFTDataset, cosmo_quantity
 
 from nazgul.configurations import min_z,max_z,min_mass
-from nazgul.Translator.COLIBRE import simsuite_name
+from nazgul.Translator.COLIBRE import simsuite_name,sim,subsim
 
 # the following is, so far, not a variable
 colibre_base_path = Path("/cosma8/data/dp004/colibre/Runs/")
 
 # later on consider if this is the one we want:
-std_sim = Path("L0025N0752")
-std_subsim = Path("THERMAL_AGN_m5")
+std_sim = Path(sim[0])
+std_subsim = Path(subsim[str(std_sim)][0])
 # note: the following is for now used both as the path for the output list in the colibre dataset, as well as in the Ringbearer data structure.
 def find_simulation_dir(sim=std_sim,
                         subsim=std_subsim):
@@ -294,13 +294,19 @@ def get_gal_candidates(snap,
                                         scale_factor=scale_factor,
                                         verbose=verbose)
         list_candidates_gal.append(candidates_gal)
-
-    try:
+    if len(list_candidates_gal)>1:
         comb_candidates_gal = np.logical_and(*list_candidates_gal)
-    except TypeError:
-        comb_candidates_gal = list_candidates_gal[0]
+        comb_candidates_gal_index = np.argwhere(comb_candidates_gal).squeeze()
+    else:
+        comb_candidates_gal_index = np.argwhere(list_candidates_gal[0])
 
-    comb_candidates_gal_index = np.argwhere(comb_candidates_gal).squeeze()
+    # Previous fix, kept in case needed
+    #try:
+    #    comb_candidates_gal = np.logical_and(*list_candidates_gal)
+    #except TypeError:
+    #    comb_candidates_gal = list_candidates_gal[0]
+    #comb_candidates_gal_index = np.argwhere(comb_candidates_gal).squeeze()
+
     if verbose:
         print(f"Found N={len(comb_candidates_gal_index)} candidates") 
     return comb_candidates_gal_index

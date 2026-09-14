@@ -88,7 +88,7 @@ class GalLens(BasicLensPart):
             self.scale_tE = (self.radius/self.thetaE).value
         if not hasattr(self,"Gal"):
             print("MONKEY_PATCH: unpacking to get Gal id") 
-            self.unpack()
+            self.unpack(verbose=False)
         _id = (
             self.Gal._identity(),
             self.PartLens._identity(),
@@ -334,7 +334,7 @@ def is_gal_to_compute(Gal,reload=True,_list_of_skippable_gals=None,check_if_work
     if gal_already_computed(Gal):
         print("Galaxy already computed")
         if _list_of_skippable_gals is not None:
-            if Gal_name in _list_of_skippable_gals:
+            if Gal.name in _list_of_skippable_gals:
                 print("Skipping because in skippable list")
                 return None
         if reload:
@@ -382,17 +382,19 @@ def wrapper_forge_all_lenses(reload=True,
                     log_memory(f"after GalLens run {Gal_name}")
                     supercrit = True
                     pji = kw_lenspart["projection_index"]
-                    print(f"Projection {pji} of {Gal_name} is supercritical!\n")
-                    # Plotting density for each individual particle
-                    plot_AMR_densityXpart(Gal=mod_LP.Gal,
-                                          proj_index=pji,
-                                          savedir=mod_LP.savedir,
-                                          rerun=not reload)
+                    if not reload:
+                        print(f"Projection {pji} of {Gal_name} is supercritical!\n")
+                        # Plotting density for each individual particle
+                        plot_AMR_densityXpart(Gal=mod_LP.Gal,
+                                              proj_index=pji,
+                                              savedir=mod_LP.savedir,
+                                              rerun=not reload)
                     plt.close("all")
                     N_lenses+=1
                     del mod_LP
                     mod_LP = None
-                    log_memory(f"after plot_AMR_densityXpart run {Gal_name}")
+                    if not reload:
+                        log_memory(f"after plot_AMR_densityXpart run {Gal_name}")
 
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")

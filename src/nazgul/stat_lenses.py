@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from python_tools.tools import mkdir
+from python_tools.tools import mkdir,silencer
 from python_tools.get_res import load_whatever
 from nazgul.pathfinder import get_catlensdir
 from nazgul.project_gal import ProjectionError
@@ -34,6 +34,11 @@ def get_all_gallens_gen_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsi
         gen_paths = [sim_dir]
         
     if len(gen_paths)==0:
+        print(f"Snaps : {snaps}")
+        print(f"Sim : {sim}")
+        print(f"SimSuite : {simsuite}")
+        print(f"SubSim: {subsim}")
+        print(f"Data dir: {data_dir}")
         raise RuntimeError("No computed gallenses found")
     return gen_paths
 
@@ -56,6 +61,11 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=st
     # there might be doubles, we have to deal with them in a way or another
     computed_gallenses = deal_with_doubles(computed_gallenses,how2deal_with_doubles)
     if len(computed_gallenses)==0:
+        print(f"Snaps : {snaps}")
+        print(f"Sim : {sim}")
+        print(f"SimSuite : {simsuite}")
+        print(f"SubSim: {subsim}")
+        print(f"Data dir: {data_dir}")
         raise RuntimeError("No computed gallenses found")
     return computed_gallenses
 
@@ -101,11 +111,15 @@ def deal_with_doubles(gallenses_paths,how2deal_with_doubles="take_latest"):
         return deduplicate_lens_paths(gallenses_paths)
     else:
         raise RuntimeError(f"how2deal_with_doubles {how2deal_with_doubles} not implemented")
-        
-def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
+
+@silencer
+def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir,n_lenses=np.nan,verbose=True):
     lenses= []
     computed_gallenses = get_all_gallens_paths(snaps=snaps,sim=sim,simsuite=simsuite,subsim=subsim,data_dir=data_dir)
-    
+    if not np.isnan(n_lenses):
+        print(f"Taking only the first {n_lenses} lenses") 
+        computed_gallenses = computed_gallenses[:n_lenses]
+
     for gal_lns in computed_gallenses:
         ln = load_whatever(gal_lns)
         ln.unpack()
@@ -115,11 +129,12 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
             lenses.append(ln)
         except ProjectionError as PE:
             # ignore galaxies which are not lenses
+            # should already have been discarded a priori
             pass
     return lenses
     
 def monkey_patch_naming(lnsgal,lnsgal_path):
-    if str(lnsgal.pkl_path)!=lnsgal_path:
+    if str(lnsgal.pkl_path)!=str(lnsgal_path) and not "results" in str(lnsgal_path):
         warnings.warn("MONKEY-PATCH:\nUpdating name of stored instance")
         os.rename(lnsgal_path,lnsgal.pkl_path)
     return 0
@@ -138,7 +153,7 @@ def get_catdir_stat(snaps=[],sim=std_sim,subsim=std_subsim,
     
 if __name__ =="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Compute and plot some useful statistic on the computed lenses")
-    parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
+    parser.add_argument('-snap','--snap',nargs="+",dest="snaps",default=[],help=f"List of snaps to consider - default is all")
     parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
     parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
     parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")

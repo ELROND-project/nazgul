@@ -1,5 +1,7 @@
 # Model all lenses where LOS is not simulated but w. LOS in the model
 # to study the internal shear (á la Etherington)
+# use a cored power law
+raise RuntimeError("To find or implement the cored elliptical profile")
 import os,gc
 import argparse
 import numpy as np
@@ -16,7 +18,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
 from nazgul.Modelling.lib_models import save_data,plot_model_plot
-from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std,get_res_dir # default values
+from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
 # WOI cross-machine lock
 from python_tools.tools import mkdir
@@ -49,7 +51,7 @@ def get_kwargs_params(lens):
     kwargs_lower_lens = [{'theta_E': 0, 'e1': -0.5, 'e2': -0.5, 'gamma': 1.5, 'center_x': -10., 'center_y': -10}]
     kwargs_lower_source = [{'R_sersic': 0.001, 'n_sersic': .5, 'center_x': -10, 'center_y': -10}]
     # hard bound upper limit in parameter space #
-    kwargs_upper_lens = [{'theta_E': 3*tE, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10}]
+    kwargs_upper_lens = [{'theta_E': 10, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10}]
     kwargs_upper_source = [{'R_sersic': 10, 'n_sersic': 5., 'center_x': 10, 'center_y': 10}]
 
     # add LOS params
@@ -160,19 +162,15 @@ if __name__=="__main__":
         raise RuntimeError("Give a valid run_type or implement it your own")
 
     # picked by hand "bad" lenses ->
-    lenses2skip = ["LS_Lens_Gn75SGn0_Prj1","LS_Lens_Gn4SGn0_Prj2","LS_Lens_Gn4SGn0_Prj0","LS_Lens_Gn14SGn0_Prj1",
-                   "LS_Lens_Gn71SGn0_Prj2","LS_Lens_Gn7SGn1_Prj2","LS_Lens_Gn15SGn1_Prj0","LS_Lens_Gn15SGn1_Prj0",
-                   "LS_Lens_Gn6SGn0_Prj2","LS_Lens_Gn1SGn2_Prj1","LS_Lens_Gn42SGn0_Prj1","LS_Lens_Gn18SGn0_Prj2",
-                   "LS_Lens_Gn18SGn0_Prj0","LS_Lens_Gn18SGn0_Prj0","LS_Lens_Gn18SGn0_Prj2","LS_Lens_Gn22SGn1_Prj2",
-                   "LS_Lens_Gn22SGn1_Prj1","LS_Lens_Gn66SGn0_Prj1","LS_Lens_Gn45SGn0_Prj0","LS_Lens_Gn33SGn0_Prj2"]
+    lenses2skip = []
     
     kw_get_all_gallens = {"sim":sim,
                           "subsim":subsim,
-                          "simsuite":simsuite,
-                          "snaps":snaps}
-    res_dir = get_res_dir(res_dir_base,simsuite,sim,
-                          subsim=subsim,run_type=run_type)
-
+                           "simsuite":simsuite,
+                            "snaps":snaps}
+    res_dir = res_dir_base
+    if run_type>1:
+        res_dir = res_dir_base/"test"
 
     print("\nGetting catalogue of lenses 2 model\n###################\n")
     gal_lenses  = get_lenses2model(res_dir=res_dir,

@@ -59,6 +59,7 @@ if __name__ == "__main__":
     parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
     parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
     parser.add_argument('-ext','--extent_type',type=str,dest="extent_type",default="arc",help=f"Extent type: either 'arc' (arcseconds, default) or 'kpc'")
+    parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=np.nan,help=f"Number of lenses to model")
 
     args      = parser.parse_args()
     snaps     = args.snaps #[25,26,27]
@@ -66,12 +67,15 @@ if __name__ == "__main__":
     subsim    = args.subsim
     simsuite  = args.simsuite
     extent_type = args.extent_type 
+    n_lenses   = args.n_lenses
+
     if extent_type not in ["arc","kpc"]:
         raise ValueError(f'extent_type must be either "arc" or "kpc", not {extent_type}')
     lenses  =  get_all_gallens(sim=sim,
                                subsim=subsim,
                               simsuite=simsuite,
-                              snaps=snaps)
+                              snaps=snaps,
+                              n_lenses=n_lenses)
     savedir = get_catdir_stat(sim=sim,
                               subsim=subsim,
                               simsuite=simsuite,
@@ -90,14 +94,9 @@ if __name__ == "__main__":
         extents_arc.append(kw_extents["extent_arcsec"])
         lns = LensSystem.from_GalLens(l)
         lns.setup()
-        warnings.warn("Very arbitrary moving the source 'by hand'")
-        sig_source     = lns.gallens.thetaE.value/3
-        rad_source     = np.random.uniform(0,sig_source)
-        phi_source     = np.random.uniform(0,2*np.pi)
-        ra_source      = rad_source*np.cos(phi_source) 
-        dec_source     = rad_source*np.sin(phi_source) 
-        lns.update_source_position(ra_source,dec_source)
-        images.append(lns.get_lensed_image())
+        Sim = lns.get_Sim()
+        lns.image_sim = lns.get_lensed_image(Sim=Sim,kwargs_source=None, unconvolved=False)
+        images.append(lns.image_sim)
         zl = np.round(lns.gallens.z_lens,2)
         zls.append(zl)
         if len(snaps)!=1:

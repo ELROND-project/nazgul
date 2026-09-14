@@ -60,9 +60,9 @@ def get_rnd_kw_gal(simsuite=std_simsuite,sim=std_sim,subsim=None,
                                 min_mass=min_mass,max_z=max_z,min_z=min_z)
     return kw
 
-def get_z_snap(simsuite,z=None,snap=None):
+def get_z_snap(simsuite,z=None,snap=None,*args,**kwargs):
     get_z_snap = get_sim_func(simsuite,"get_z_snap")
-    return get_z_snap(z=z,snap=snap)
+    return get_z_snap(z=z,snap=snap,*args,**kwargs)
 
 def Gal2MXYZ(Gal):
     print("Running Gal2MXYZ...")
@@ -71,18 +71,18 @@ def Gal2MXYZ(Gal):
     Gal2MXYZ = get_sim_func(simsuite,"Gal2MXYZ")
     return Gal2MXYZ(Gal) 
 
-def Gal2MXYZ_part(Gal,part_type):
+def Gal2MXYZ_part(Gal,part_type,*args,**kwargs):
     Gal.run()
     simsuite = Gal.simsuite
     Gal2MXYZ_part = get_sim_func(simsuite,"Gal2MXYZ_part")
-    return Gal2MXYZ_part(Gal,part_type)
+    return Gal2MXYZ_part(Gal,part_type,*args,**kwargs)
 
 def Gal2kwMXYZ(Gal): 
     Ms,Xs,Ys,Zs = Gal2MXYZ(Gal)
     return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
 
-def Gal2kwMXYZ_part(Gal,part_type): 
-    Ms,Xs,Ys,Zs = Gal2MXYZ_part(Gal,part_type=part_type)
+def Gal2kwMXYZ_part(Gal,part_type,*args,**kwargs): 
+    Ms,Xs,Ys,Zs = Gal2MXYZ_part(Gal,part_type=part_type,*args,**kwargs)
     return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
 
 # from path to kw of Gal

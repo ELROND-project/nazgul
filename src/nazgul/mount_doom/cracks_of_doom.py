@@ -472,7 +472,7 @@ class BasicLensPart(BasicGal):
             # the setup is very fast 
             self.PartLens.setup(self)
         return
-    def _unpack(self):
+    def _unpack(self,verbose=True):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """

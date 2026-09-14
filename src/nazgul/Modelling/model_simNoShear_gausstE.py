@@ -1,5 +1,6 @@
 # Model all lenses where LOS is not simulated but w. LOS in the model
 # to study the internal shear (á la Etherington)
+# copy from simNoShear, now using a gaussian prior for theta_E
 import os,gc
 import argparse
 import numpy as np
@@ -14,7 +15,7 @@ from nazgul.lens_part_LOS import get_kw_los
 from nazgul.mount_doom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
-from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
+from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model,add_gaussian_tE_prior
 from nazgul.Modelling.lib_models import save_data,plot_model_plot
 from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std,get_res_dir # default values
 
@@ -24,7 +25,7 @@ from python_tools.tools_WOI import set_workin_on_it
 
 lens_model_list   = ['EPL','LOS_MINIMAL']
 source_model_list = ["SERSIC"]
-res_dir_base      = model_res_base/"simNoShear/"
+res_dir_base      = model_res_base/"simNoShear_gausstE/"
 mkdir(res_dir_base)
 
 def get_kwargs_params(lens):
@@ -160,19 +161,14 @@ if __name__=="__main__":
         raise RuntimeError("Give a valid run_type or implement it your own")
 
     # picked by hand "bad" lenses ->
-    lenses2skip = ["LS_Lens_Gn75SGn0_Prj1","LS_Lens_Gn4SGn0_Prj2","LS_Lens_Gn4SGn0_Prj0","LS_Lens_Gn14SGn0_Prj1",
-                   "LS_Lens_Gn71SGn0_Prj2","LS_Lens_Gn7SGn1_Prj2","LS_Lens_Gn15SGn1_Prj0","LS_Lens_Gn15SGn1_Prj0",
-                   "LS_Lens_Gn6SGn0_Prj2","LS_Lens_Gn1SGn2_Prj1","LS_Lens_Gn42SGn0_Prj1","LS_Lens_Gn18SGn0_Prj2",
-                   "LS_Lens_Gn18SGn0_Prj0","LS_Lens_Gn18SGn0_Prj0","LS_Lens_Gn18SGn0_Prj2","LS_Lens_Gn22SGn1_Prj2",
-                   "LS_Lens_Gn22SGn1_Prj1","LS_Lens_Gn66SGn0_Prj1","LS_Lens_Gn45SGn0_Prj0","LS_Lens_Gn33SGn0_Prj2"]
+    lenses2skip = []
     
     kw_get_all_gallens = {"sim":sim,
                           "subsim":subsim,
-                          "simsuite":simsuite,
-                          "snaps":snaps}
+                           "simsuite":simsuite,
+                            "snaps":snaps}
     res_dir = get_res_dir(res_dir_base,simsuite,sim,
                           subsim=subsim,run_type=run_type)
-
 
     print("\nGetting catalogue of lenses 2 model\n###################\n")
     gal_lenses  = get_lenses2model(res_dir=res_dir,
@@ -203,7 +199,8 @@ if __name__=="__main__":
         
         
         kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs)
-    
+        kwargs_likelihood = add_gaussian_tE_prior(lens,kwargs_likelihood)
+
         kwargs_data_joint = {'multi_band_list': multi_band_list, 'multi_band_type': 'multi-linear'}
     
         # Params:
