@@ -1,10 +1,5 @@
 .gitignore
 src/nazgul.egg-info/
 src/nazgul/RingBearer/
-src/nazgul/Translator/COLIBRE/__pycache__/
-src/nazgul/Translator/EAGLE/__pycache__/
-src/nazgul/Translator/__pycache__/
-src/nazgul/Translator/ANL_TEST/__pycache__/
-src/nazgul/__pycache__/
-src/nazgul/mount_doom/__pycache__/
+__pycache__/
 src/nazgul/Translator/EAGLE/.eagle_account.dll
