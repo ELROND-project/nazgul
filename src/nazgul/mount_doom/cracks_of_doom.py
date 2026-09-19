@@ -115,7 +115,7 @@ def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
     return kwargs_source
 
 def get_dataclasses(Sim):
-    print("Pixel_num: ",  Sim.numpix)
+    print("Pixel_num: ",  Sim.num_pix)
     print("DeltaPix: ",   np.round(Sim.pixel_scale,3))
     data_class         = Sim.data_class
     psf_class          = Sim.psf_class

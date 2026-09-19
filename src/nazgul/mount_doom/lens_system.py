@@ -7,6 +7,7 @@ import dill
 import warnings
 import numpy as np
 from pathlib import Path
+from copy import deepcopy
 # for debug plots
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -26,9 +27,11 @@ from lenstronomy.LensModel.lens_model import LensModel
 from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 
 # My libs
-from python_tools.tools import to_dimless,mkdir,to_uid,silencer
 import nazgul.mount_doom.cracks_of_doom as cod
 from nazgul.project_gal import get_2Dkappa_map
+from python_tools.get_res import load_whatever
+from python_tools.tools import to_dimless,mkdir,to_uid,silencer,dict_equal
+
 # Class structure
 from nazgul.basic_gal import BasicGal
 from nazgul.mount_doom.generate_gal_lens import GalLens
@@ -87,7 +90,7 @@ class LensSystem(BasicGal):
         self.kwargs_band_sim     = kwargs_band_sim
         # We assume that the cosmology has to be the same as the galaxy:
         self.cosmo               = self.gallens.cosmo
-        self.kwargs_source_def   = kwargs_source_default
+        self._kwargs_source_def   = kwargs_source_default
         mkdir(self.savedir)
 
 
@@ -97,10 +100,10 @@ class LensSystem(BasicGal):
             self.kwargs_lensmodel,
             self.kwargs_add_lenses,
             self.kwargs_band_sim)
-        
+    @silencer
     def setup(self,
                 Sim=None,
-                update_source_pos=True,
+                #update_source_pos=True,
                 reload=True,
                 rnd_seed=None, # to set differently to sample new source pos
                 verbose=verbose):
@@ -112,12 +115,31 @@ class LensSystem(BasicGal):
             self.gallens.run()
             self.create_lens(kwargs_add_lenses=self.kwargs_add_lenses, # these are given here as the self, but in principle with the freedom to re-define them
                              Sim=Sim,verbose=verbose)
-            if update_source_pos:
-                self.sample_source_pos(update=update_source_pos,rnd_seed=rnd_seed)
-            elif self.kwargs_source_def["center_x"]==0 and self.kwargs_source_def["center_y"]==0:
-                warnings.warn("Source is still positioned at 0,0 but I was instructed not to resample its position.")
+            # change of philosophy: source need to be sampled ONCE, then it's fixed
+            self.setup_kwargs_source()
+            # save "truths values": for now: theta_E, kwargs_source
+            self.save_truths()
             # store the results
-            self.store()
+            self.store()    
+
+    def save_truths(self):
+        # save theta_E, kwargs_source and eventual kwargs_add_lenses
+        self.setup_kwargs_source()
+        kw_truths = {"theta_E_lens0":     self.gallens.thetaE.value,
+                     "kwargs_source":     self.kwargs_source,
+                     "kwargs_add_lenses": self.kwargs_add_lenses}
+        try:
+            kw_truths_old = load_whatever(self.path_kw_truths)
+            if not dict_equal(kw_truths,kw_truths_old):
+                raise RuntimeError(f"Truths value have changed since last time\nNew: \n{kw_truths}\nOld: \n{kw_truths_old}\n") 
+            else:
+                print("Truths already present and consistent, not updating them")
+        except FileNotFoundError:
+            with open(self.path_kw_truths,"wb") as f:
+                dill.dump(kw_truths,f)
+        print(f"Stored kw_truths in {self.path_kw_truths}")
+        return 0
+                     
     #############################
     @property
     def savedir(self):
@@ -163,6 +185,18 @@ class LensSystem(BasicGal):
         # to correct asap
         name= name_lnsp.replace("Sub_","LS_")
         return name
+
+    @property
+    def path_kw_sampled_source(self):
+        return self.savedir/f"kw_sampled_source_pos_prj{self.gallens.proj_index}.dll"
+    @property
+    def path_kw_truths(self):
+        # Note: these truths are relative to the lens system, 
+        # indep. of the modelling (e.g. indep of the added LOS parameters)
+        return self.savedir/f"kw_truths_prj{self.gallens.proj_index}.dll"
+
+    def get_truths(self):
+        return load_whatever(self.path_kw_truths)
         
     @classmethod
     def from_GalLens(cls, GalLens,**kwargs_lenssystem):
@@ -179,7 +213,7 @@ class LensSystem(BasicGal):
         obj.kwargs_add_lenses   = kwargs_lenssystem.get("kwargs_add_lenses",empty_kwargs_add_lenses)
         # observational params
         obj.kwargs_band_sim     = kwargs_lenssystem.get("kwargs_band_sim",kwargs_band_sim)
-        obj.kwargs_source_def   = kwargs_lenssystem.get("kwargs_source",kwargs_source_default)
+        obj._kwargs_source_def   = kwargs_lenssystem.get("kwargs_source",kwargs_source_default)        
         return obj
         
     #############################
@@ -516,16 +550,19 @@ class LensSystem(BasicGal):
     
     # Source
     #########
-    def update_source_position(self,ra_source,dec_source):
-        # useful if we want to put it in the center of the caustic
-        self.kwargs_source_def["center_x"] = ra_source
-        self.kwargs_source_def["center_y"] = dec_source
-        return 0
         
-    def sample_source_pos(self,update=False,_radec=None,rnd_seed=None,recompute=False):
-        """Sample the source position within the tangential
-        critical caustic
+    #def sample_source_pos(self,update=False,_radec=None,rnd_seed=None,recompute=False):
+    def setup_kwargs_source(self,_radec=None,rnd_seed=None,recompute=False):
         """
+        Setup the kwarg_soure by sampling the source position within 
+        the tangential critical caustic
+        """
+        if hasattr(self,"kwargs_source"):
+            if self.kwargs_source["center_x"] == 0 and self.kwargs_source["center_y"] == 0:
+                raise RuntimeError("Center of kwargs_source still 0")
+            return self.kwargs_source
+            
+        self.kwargs_source = deepcopy(self._kwargs_source_def)
         print("Sampling source position within tangential caustic")
         
         if _radec is None:
@@ -535,12 +572,12 @@ class LensSystem(BasicGal):
         # fixing seed for reproducibility            
         print(f"Fixing seed to {rnd_seed}")
         np.random.seed(rnd_seed)
-        res_path = self.savedir/"kw_sampled_source_pos.dll"
+        res_path = self.path_kw_sampled_source
         try:
             assert not recompute
             kw_sampled_source_pos = load_whatever(res_path)
             print("Loaded pre-computed source position")
-            ra_source = kw_sampled_source_pos["ra_source"]
+            ra_source  = kw_sampled_source_pos["ra_source"]
             dec_source = kw_sampled_source_pos["dec_source"]
         except:
             ra_source,dec_source = _sample_source_pos(self,_radec=_radec)
@@ -549,14 +586,10 @@ class LensSystem(BasicGal):
                 dill.dump(kw_sampled_source_pos,f)
             print("Stored computed source position")
             
-        if self.kwargs_source_def["center_x"]==0 and self.kwargs_source_def["center_x"]==0 and not update:
-            print("Source position has to be sampled a first time")
-            update=True
-        if update:
-            self.update_source_position(ra_source,dec_source)
-        else:
-            print("Source position not updated")
-        return ra_source,dec_source
+        # useful if we want to put it in the center of the caustic
+        self.kwargs_source["center_x"] = ra_source
+        self.kwargs_source["center_y"] = dec_source
+        return 0
 
     def get_xy_source_plane(self,alpha_map=None,_radec=None):
         """Map the x,y grid into the source plane
@@ -649,7 +682,7 @@ class LensSystem(BasicGal):
             # -> round down to be sure we are within the bounds
             pixel_num = int(to_dimless(2*self.gallens.radius)/kwargs_single_band["pixel_scale"])
         # instantiate simulation API class
-        Sim = SimAPI(numpix = pixel_num, # N of pixels in "observed" image
+        Sim = SimAPI(num_pix = pixel_num, # N of pixels in "observed" image
                  kwargs_single_band = kwargs_single_band, # telescope specific keyword arguments (eg HST, see above)
                  kwargs_model = kwargs_model,# kwargs source model (in principle kw lens as well)
                 )
