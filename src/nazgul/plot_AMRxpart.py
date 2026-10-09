@@ -37,46 +37,46 @@ default_kw_densmap={"max_particles":100,
                     "dens_thresh": 0.*u.Msun/(u.kpc**2),
                     "clip":True}
 
-def _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,
+def _get_kw_1D_density_enclosed(Gal,kw_1D_dens,kw_2Ddens,
                                 proj_index=None,scale_tE_cutout=def_scale_tE_cutout,
                                 plot_figall=True):
-    r_all,Sigma_encl_all   = cells2SigEnclRad(kw_2Ddens_all)
-    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,kw_2D_dens,Gal,r_all,Sigma_encl_all,Sigma_encl_all,proj_index,
+    r,Sigma_encl   = cells2SigEnclRad(kw_2Ddens)
+    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,kw_2D_dens,Gal,r,Sigma_encl,Sigma_encl,proj_index,
                                         scale_tE_cutout,plot_figall)
-    kw_1D_dens["Sigma_encl_all"] = Sigma_encl_all # Msun/kpc^2
+    kw_1D_dens["Sigma_encl_all"] = Sigma_encl # Msun/kpc^2
     return kw_1D_dens
-
-def _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens_all,
+    
+def _get_kw_1D_density_not_enclosed(Gal,kw_1D_dens,kw_2Ddens,
                                     proj_index=None,scale_tE_cutout=def_scale_tE_cutout,
                                     plot_figall=True):
-    r_all,M_all,area_all   = cells2MRad(kw_2Ddens_all)
-    Sigma_all = M_all/area_all
+    r,M,area = cells2MRad(kw_2Ddens)
+    Sigma    = M/area
     
     # still need to compute this for the theta_E
     # Cumulative sum
-    cumulative_mass = np.cumsum(M_all)
-    cumulative_area = np.cumsum(area_all)
+    cumulative_mass = np.cumsum(M)
+    cumulative_area = np.cumsum(area)
     
     # Compute enclosed density Sigma(<r)
-    Sigma_encl_all = cumulative_mass/cumulative_area
+    Sigma_encl = cumulative_mass/cumulative_area
 
-    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,kw_2D_dens,Gal,r_all,Sigma_all,Sigma_encl_all,proj_index,
+    kw_1D_dens = _get_kw_1D_density_gen(kw_1D_dens,kw_2D_dens,Gal,r,Sigma,Sigma_encl,proj_index,
                                         scale_tE_cutout,plot_figall)
-    kw_1D_dens["Sigma_all"] = Sigma_all # Msun/kpc^2
+    kw_1D_dens["Sigma_all"] = Sigma # Msun/kpc^2
     return kw_1D_dens
 
 def _get_kw_1D_density_gen(kw_1D_dens,kw_2Ddens,Gal,r,Sigma,Sigma_encl,proj_index=None,
                            scale_tE_cutout=def_scale_tE_cutout,plot_figall=True):
-    r_all = r.to("kpc")
+    r = r.to("kpc")
     
-    Sigma      = Sigma.to("Msun/kpc^2")
+    Sigma = Sigma.to("Msun/kpc^2")
     
     kw_1D_dens["r_all"] = r #kpc
     Sigma_crit = kw_1D_dens["Sigma_crit"] # Msun/kpc^2
     Sigma_crit = ensure_unit(Sigma_crit,Sigma.unit)
     
-    MD_coord_all = copy.copy(kw_2Ddens["MD_coords"])
-    kw_1D_dens["MD_coords_all"] = MD_coord_all #
+    MD_coord = copy.copy(kw_2Ddens["MD_coords"])
+    kw_1D_dens["MD_coords_all"] = MD_coord #
     
     RE         = np.interp(Sigma_crit.value, 
                            Sigma_encl.value[::-1], 
