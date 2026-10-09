@@ -64,10 +64,19 @@ def get_redshift_range(snaps, kw_galpart):
         warnings.warn(f"Taking large range of redshift: {min_z}<=z<={max_z}")
     return min_z, max_z
 
-
+def thin_out(data,x,perc_thin = .2):
+    """
+    Discard a percentage of the data to thin it out and save storage
+    """
+    thin_index = np.arange(0, len(data), int(1/perc_thin) )
+    thin_data  = np.delete(data, thin_index )
+    thin_x     = np.delete(x, thin_index )
+    return thin_x,thin_data
+    
 def get_kappa_profiles(kw_galpart, kw_criteria,
                        enclosed = True,
                        reload=True,
+                       do_thin_out = True,
                        kw_res_path="tmp/kw_kappa_r.dll"):
     """
     Try to load a cached kw_res from kw_res_path. If it exists and was computed
@@ -86,11 +95,11 @@ def get_kappa_profiles(kw_galpart, kw_criteria,
     kw_galpart_full["kw_criteria"] = kw_criteria
     kw_galpart_processed = get_kw_galpart(kw_galpart_full)
 
-    profiler = Profiler()
-    profiler.start()
+    #profiler = Profiler()
+    #profiler.start()
     all_Gal = get_all_PG(**kw_galpart_processed)
-    profiler.stop()
-    print(profiler.output_text(color=True, show_all=False))
+    #profiler.stop()
+    #print(profiler.output_text(color=True, show_all=False))
 
     kw_res = {
         "rs": [],
@@ -116,8 +125,10 @@ def get_kappa_profiles(kw_galpart, kw_criteria,
             tE = kw_1d["tE"]  # arcsec
             RE = tE / kw_1d["arcXkpc"]
             arcXkpc =  kw_1d["arcXkpc"]
-            
 
+            if do_thin_out:
+                kappa,r = thin_out(kappa,r)
+                
             kw_res["rs"].append(r.value)
             kw_res["REs"].append(RE.value)
             kw_res["kappas"].append(kappa.value)
@@ -156,14 +167,15 @@ def plot_kappa_overlap(kw_res, enclosed=True, out_path="tmp/1D_overlap.png"):
     r_lbl = r"log$_{10}$ r/R$_{\rm{E}}$ [kpc]"
     if enclosed:    
         kappa_lbl = r"log$_{10} \kappa(<r)$ []"
+        kappa_tlt = "Overlap of enclosed and scaled 1D kappa profiles"
     else:
         kappa_lbl = r"log$_{10} \kappa(r)$ []"
+        kappa_tlt = "Overlap of scaled 1D kappa profiles"
+        
     ax.set_xlabel(r_lbl)
     ax.set_ylabel(kappa_lbl)
-    if enclosed
-    ax.set_title("Overlap of enclosed and scaled 1D kappa profiles")
-    else:
-        ax.set_title("Overlap of scaled 1D kappa profiles")
+    
+    ax.set_title(kappa_tlt)
 
     for r, kappa, RE in zip(kw_res["rs"], kw_res["kappas"], kw_res["REs"]):
         ax.plot(np.log10(r / RE), np.log10(kappa), alpha=.5, color="grey")

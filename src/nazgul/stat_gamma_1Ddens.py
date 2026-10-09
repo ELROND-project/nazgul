@@ -8,7 +8,6 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from importlib import import_module
 from scipy.optimize import curve_fit
 from chainconsumer import Chain, ChainConsumer
 

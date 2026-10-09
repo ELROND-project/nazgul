@@ -50,7 +50,7 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=st
     """
     gen_paths = get_all_gallens_gen_paths(snaps=snaps,sim=sim,subsim=subsim,
                                           simsuite=simsuite,data_dir=data_dir)
-    
+    # Weak description! - this might break if I change path name of Sub dir or Sub_* lens naming
     if len(snaps)!=0:
         computed_gallenses = []
         for snap_dir in gen_paths:
@@ -122,7 +122,7 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
 
     for gal_lns in computed_gallenses:
         ln = load_whatever(gal_lns)
-        ln.unpack()
+        ln.unpack(verbose=verbose)
         monkey_patch_naming(ln,gal_lns)
         try:
             ln.run()
