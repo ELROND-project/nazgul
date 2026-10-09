@@ -8,8 +8,10 @@ from python_tools.tools import to_dimless
 from python_tools.image_manipulation import mask_in, mask_out
 
 
-def masking_thetaE(lens):
+def masking_thetaE(lens,image=None):
     raise RuntimeError("Deprecated")
+    if image is None:
+        image = lens.image_true
     # we want to mask everything apart the thetaE 
     tE  = to_dimless(lens.thetaE) #arcsec
     # rad = 2thetaE
@@ -38,7 +40,7 @@ def mask_SEAGLE_old(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25
         pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
     filt_img = gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
@@ -76,7 +78,7 @@ def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked
         pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     fwhm_pix = image.shape[0]*fwhm_pix_perc/100
     filt_img = gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
@@ -104,7 +106,7 @@ def mask_max_dens(lens,image=None,rad=0.15):
     mask the densest coord of the lens (~center)
     """
     if not image:
-        image = lens.image_sim
+        image = lens.image_true
     # by construction recentered around densest point
     cx,cy = np.array(image.shape)/2.
     # for some reason this might be a bit off -> take the maximum density
@@ -123,7 +125,7 @@ def mask_center(lens,image=None,rad=0.15):
     mask the centre of the lens
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     # by construction recentered around densest point
     cx,cy = lens.pixel_num/2.,lens.pixel_num/2.
     
@@ -155,7 +157,7 @@ def mask_bright_center(lens,image=None,rad_pix=10):
     re-centre the mask around the brightest pixel
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     mask_cent = mask_center(lens,image=image,rad=5*lens.deltaPix)
     # find brightest pixel within the mask
     masked_part = invert_mask(mask_cent)*image

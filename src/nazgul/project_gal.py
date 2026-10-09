@@ -616,9 +616,10 @@ def get_2Dkappa_map(Gal,proj_index,MD_coords,SigCrit,kwargs_extents,arcXkpc=None
     Ddec01  = np.diff(dec_edges)
     
     # density_ij = M_ij/(Area_bin_ij)
-    density    = mass_grid.T / (Dra01*Ddec01/(arcXkpc**2)) # Msun/kpc^2
-    kappa = density/SigCrit
-    kappa = kappa.to("").value
+    area_grid = np.outer(Dra01, Ddec01) / arcXkpc**2   # shape (nx, ny), kpc^2
+    density   = mass_grid.T / area_grid.T              # match mass_grid.T's (ny, nx) shape
+    kappa     = density / SigCrit
+    kappa     = kappa.to("").value
     return kappa
 
 

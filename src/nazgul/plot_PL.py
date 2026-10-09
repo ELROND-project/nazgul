@@ -30,8 +30,8 @@ def _plot_caustics(kw_crit,
         ax.set_xlim(xmin,xmax)
         ax.set_ylim(ymin,ymax)
     plt.gca().set_aspect('equal')
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
+    ax.set_xlabel('RA ["]')
+    ax.set_ylabel('DEC ["]')
     ax.legend()
     ax.set_title("Caustics and Critical Curves") 
     plt.tight_layout()
@@ -46,7 +46,7 @@ def plot_caustics(Model,savename=tmp_dir/"test_caustics.png",kw_extents=None):
     return _plot_caustics(kw_crit,savename=savename,kw_extents=kw_extents)
 
 
-def plot_kappamap(kappa_map,extent_kpc,title1="",savename="kappa.png",cmap="hot",label_clb=r'$\kappa$',
+def plot_kappamap(kappa_map,extent_kpc,title1="",savename="kappa.png",cmap="gist_heat",label_clb=r'$\kappa$',
                   to_sigma_clip=True,sigma=10):
     if to_sigma_clip:
         warnings.warn("Sigma clipping kappa map")
@@ -86,6 +86,13 @@ def plot_kappamap(kappa_map,extent_kpc,title1="",savename="kappa.png",cmap="hot"
 
 def plot_lensed_im_and_kappa(Model,savename="lensed_im.pdf",kw_extents=None):
     kappa = Model.kappa_map
+    if hasattr(Model,"Gal"):
+        name = Model.Gal.name
+    else:
+        name = Model.name
+    name = name.replace("Sub_","")
+    name = name.replace("Lens_","")
+    
     if kw_extents is None:
         kw_extents = Model.kw_extents
     fg,axes = plt.subplots(1,2,figsize=(10,5))
@@ -94,25 +101,25 @@ def plot_lensed_im_and_kappa(Model,savename="lensed_im.pdf",kw_extents=None):
     extent_kpc    = kw_extents["extent_kpc"]
     extent_arcsec = kw_extents["extent_arcsec"]
     
-    im0   = ax.matshow(kappa,origin='lower',extent=extent_kpc,cmap="hot")
+    im0   = ax.matshow(np.log10(kappa),origin='lower',extent=extent_kpc,cmap="gist_heat")
     ax.set_xlabel("X [kpc]")
     ax.set_ylabel("Y [kpc]")
-    ax.set_title(r"Convergence "+Model.Gal.name)
+    ax.set_title(r"Convergence "+name)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
-    fg.colorbar(im0, cax=cax, orientation='vertical',label=r"$\kappa$")
+    fg.colorbar(im0, cax=cax, orientation='vertical',label=r"log$_{10}\, \kappa$")
 
     lnsd_im  = Model.image_sim 
     ax = axes[1]
     im0   = ax.matshow(np.log10(lnsd_im),origin='lower',extent=extent_arcsec)
-    ax.set_xlabel("X [arcsec]")
-    ax.set_ylabel("Y [arcsec]")
+    ax.set_xlabel('X ["]')
+    ax.set_ylabel('Y ["]')
     
-    ax.set_title("Lensed image "+Model.Gal.name)
+    ax.set_title("Lensed image "+name)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label=r"log$_{10}$ flux [arbitrary]")
-    plt.suptitle(r"With z$_{\text{lens}}$="+str(np.round(Model.z_lens,2))+" z$_{\text{source}}$="+str(np.round(Model.z_source,2)))
+    plt.suptitle(r"With z$_{\rm{lens}}$="+str(np.round(Model.z_lens,2))+r" z$_{\rm{source}}$="+str(np.round(Model.z_source,2)))
     plt.tight_layout()
     print(f"Saving {savename}") 
     plt.savefig(savename)

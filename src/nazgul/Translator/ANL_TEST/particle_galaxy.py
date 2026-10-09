@@ -181,6 +181,7 @@ class SimPartGal(BasicPartGal):
         self.gal_dir = get_gal_dir(kw_gal=self.kwargs_gal,
                                    snap=self.snap,
                                    sim=self.sim,
+                                   subsim=None,
                                    simsuite=simsuite_name)
         mkdir(self.gal_dir)
         self.z_lens  = z_lens
@@ -244,3 +245,8 @@ def Gal2MXYZ_part(Gal,part_type):
     part_type =  check_part_type(part_type)
     # There is only 1 type of particle, so:
     return Gal2MXYZ(Gal)
+
+
+def standardise_snap(snap,*args,**kwargs):
+    # Snap should not be a factor in this Simulation
+    return snap 

@@ -22,6 +22,7 @@ from python_tools.get_res import LoadClass
 from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
 # general path
 from nazgul.pathfinder import path_nazgul, std_data_dir
+from nazgul.ObsData.band import BasicBand
 
 def _resolve_gal_path(stored_path,data_dir=std_data_dir):
     """Translate a stored Gal_path to an absolute path on this machine.
@@ -94,6 +95,9 @@ kwargs_source_default     = kwargs_sersic_ellipse_abs_mag
 source_model_list         = ['SERSIC_ELLIPSE']
 
 def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
+    """
+    Convert (abs) magnitude in amplitude 
+    """
     if kwargs_source is None:
         if lens is None:
             kwargs_source = kwargs_source_default
@@ -115,7 +119,7 @@ def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
     return kwargs_source
 
 def get_dataclasses(Sim):
-    print("Pixel_num: ",  Sim.numpix)
+    print("Pixel_num: ",  Sim.num_pix)
     print("DeltaPix: ",   np.round(Sim.pixel_scale,3))
     data_class         = Sim.data_class
     psf_class          = Sim.psf_class
@@ -127,14 +131,20 @@ def get_dataclasses(Sim):
 # Model class for parts. #
 ##########################
 # kwargs of ultra-performing band for default simulated images -> quite arbitrary, possibly to improve 
-kwargs_band_sim = {'read_noise': 0, # no RN noise
+
+kwargs_band_sim_camera = {'read_noise': 0, # no RN noise
  'pixel_scale': None,               # to update depending on the lens
  'ccd_gain': 2.5,             # standard gain for HST
- 'exposure_time': 5400.0,     # very long exp time for HST
+                         }
+kwargs_band_sim_obs ={'exposure_time': 5400.0,     # very long exp time for HST
  'sky_brightness': 35,        #"dark" sky
  'magnitude_zero_point': 30,  # very deep 
  'num_exposures': 4,          # standard HST n exp.
  'psf_type': 'NONE'}          # "infinite" psf resolution 
+
+# band used to simulate the True images
+band_true = BasicBand(kwargs_camera=kwargs_band_sim_camera,
+                     kwargs_obs=kwargs_band_sim_obs)
 
 kw_prior_z_source_minimal = {"z_source_max":conf.z_source_max}
 kw_prior_z_source_stnd    = kw_prior_z_source_zl|kw_prior_z_source_minimal

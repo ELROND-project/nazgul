@@ -79,11 +79,8 @@ def get_kw_z_snap(sim=std_sim,
     return kw_z_snap
     
 def get_z(snap,sim=std_sim,subsim=std_subsim):
+    snap = standardise_snap(snap)
     kw_snap_z = get_kw_snap_z(sim=sim,subsim=subsim)
-    # format snap to integer
-    int_snap = int(str(snap).lstrip("0"))
-    # format it back to str w. leading 0 to match kw_snap_z
-    snap = _get_snap(int_snap)
     return kw_snap_z[snap]
     
 def get_snap(z,sim=std_sim,subsim=std_subsim):
@@ -94,11 +91,19 @@ def get_snap(z,sim=std_sim,subsim=std_subsim):
     snap  = f'{kw_z_snap[key_z]}'
     return snap
 
+def standardise_snap(snap,*args,**kwargs):
+    # format snap to integer (if not already)
+    int_snap = int(str(snap).lstrip("0"))
+    # format it back to str w. leading 0 to match kw_snap_z
+    snap = _get_snap(int_snap)
+    return snap    
+
 def get_z_snap(z=None,snap=None,sim=std_sim,subsim=std_subsim):
     if z is None and snap is None:
         raise UserWarning("Give either z or snap")
     if z is None:
         z = get_z(snap,sim=sim,subsim=subsim)
+        snap = standardise_snap(snap)
     else:
         snap = get_snap(z,sim=sim,subsim=subsim)
     return z,snap
@@ -109,7 +114,7 @@ def get_soap_cat(snap,
                  subsim=std_subsim,
                  colibre_base_path=colibre_base_path):
     simulation_dir = find_simulation_dir(sim=sim,subsim=subsim)
-    snap = _get_snap(snap)
+    snap = standardise_snap(snap)
     soap_catalogue_file = os.path.join(
         colibre_base_path,
         simulation_dir,
@@ -157,7 +162,7 @@ def get_all_snap(sim=std_sim,
     # are ignored
     #all_snap_int  = np.arange(int(max_snap),int(min_snap)+1)
     # snap has to be a string
-    #all_snap   = [_get_snap(snap) for snap in all_snap_int]
+    #all_snap   = [standardise_snap(snap) for snap in all_snap_int]
     kw_z_snap = get_kw_z_snap(sim=sim,subsim=subsim)
     zs        = np.array(list(kw_z_snap.keys()))
     i_zs      = np.logical_and(zs>min_z,zs<max_z)

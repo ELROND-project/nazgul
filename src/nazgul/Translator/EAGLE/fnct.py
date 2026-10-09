@@ -93,6 +93,12 @@ def verify_z_snap(z,snap):
     if z is not None and snap is not None:
         assert int(get_snap(z))==int(snap)
 
+def standardise_snap(snap,*args,**kwargs):
+    z = get_z(snap)
+    # return it as a 3-character string
+    snap = get_snap(z,3)
+    return snap 
+    
 def get_nfiles(sim):
     # n* of files per snapshot:
     if sim=="RefL0025N0752":

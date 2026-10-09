@@ -11,11 +11,29 @@ from python_tools.tools import to_dimless
 from nazgul.stat_lenses import get_all_gallens_paths
 from nazgul.mount_doom.cracks_of_doom import LoadLens
 
-from nazgul.isodens import fit_isodens,fit_isopot,_err_map_type #,plot_isodens,plot_isopot
+from nazgul.fit_iso_ell import fit_isodens,fit_isopot,_err_map_type #,plot_isodens,plot_isopot
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 
 from nazgul.pathfinder import std_data_dir,tmp_dir
 
+
+def get_DPA(isolist,i_tE):
+    # get Pointing angle in degrees wrt PA at theta_E 
+    pa     = isolist.pa/np.pi*180. # deg
+    if np.any(np.abs(np.diff(pa))>135):
+        pa[np.where(pa>135)] -=180
+    pa_i = pa[i_tE]
+    Dpa = pa-pa_i
+    return Dpa
+
+def get_xi_tE(isolist,RE_pix=1):
+    """Get circularised radius from isolist, scaled by tE (given in pixel)"""
+    q = 1-isolist.eps
+    #b = isolist.sma*q
+    xi = isolist.sma*np.sqrt(q) # = np.sqrt(a*b)
+    xi_RE = xi/RE_pix
+    return xi_RE
+    
 def plot_first_column(axis,logr,th_nrm,gamma_der,eps,Dpa,x0,y0,bxdk,*args,**kwargs):
     ax = axis[0][0]
     ax.plot(logr,gamma_der,alpha=.3,color="grey",ls="-")

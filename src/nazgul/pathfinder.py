@@ -3,6 +3,10 @@ from python_tools.tools import mkdir
 
 import nazgul.configurations as conf
 from   nazgul.Translator import std_sim,std_subsim,std_simsuite,test_sim,tutorial_sim
+from   nazgul.Translator.translator import standardise_snap
+from   nazgul.std_path   import std_data_dir
+# many scripts point here to load the following, so we need to import them
+from  nazgul.std_path import path_nazgul,path_nazgul_origin,std_simsuite_dir,std_sim_dir,LensPop_dir,tmp_dir,results_dir
 """
 Data structure:
 ---------------
@@ -17,23 +21,6 @@ RingBearer
                          |     |_pkl       |_pkl    
                          |_pkl                  
 """
-path_nazgul        = conf.nazgul_path
-path_nazgul_origin = conf.nazgul_path_origin if conf.nazgul_path_origin is not None else conf.nazgul_path
-
-std_data_dir = path_nazgul/"RingBearer"
-# (base)/tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible
-tmp_dir = path_nazgul/"tmp"
-mkdir(tmp_dir)
-
-# result directory
-results_dir = path_nazgul/"results"
-mkdir(results_dir)
-
-std_simsuite_dir = std_data_dir/std_simsuite # which simulation suite
-std_sim_dir      = std_simsuite_dir/std_sim  # which simulation
-
-# path to LensPop directory
-LensPop_dir = path_nazgul/"LensPop"
 def get_simsuite_dir(simsuite=std_simsuite,data_dir=std_data_dir):
     data_dir     = Path(data_dir)
     simsuite_dir = data_dir/simsuite # which simulation suite
@@ -68,7 +55,10 @@ def get_snap_dir(snap,sim=std_sim,subsim=std_subsim,simsuite=std_simsuite,data_d
     """
     sim_dir = get_sim_dir(sim=sim,subsim=subsim,
                           simsuite=simsuite,data_dir=data_dir)
-    snap     = str(snap).zfill(3)
+    # the following would be great but doesn't work 
+    # as it would need circular imports from Translator.translator -> solved?
+    snap     = standardise_snap(simsuite=simsuite,snap=snap)
+    #snap     = str(snap).zfill(3)
     snap_dir = sim_dir/f"snap_{snap}"
     return snap_dir
 

@@ -25,7 +25,7 @@ from python_tools.get_res import load_whatever
 from nazgul.Translator.EAGLE.get_gal_indexes import get_gals,get_catpath,get_query
 from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_data_dir,path_nazgul
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
-from nazgul.Translator.EAGLE.fnct import get_snap,get_z_snap,read_snap_header,get_nfiles
+from nazgul.Translator.EAGLE.fnct import get_snap,get_z_snap,read_snap_header,get_nfiles,standardise_snap
 
 from nazgul.Translator.EAGLE import simsuite_name,simsuite_short_name,part_type_list,check_part_type
 from nazgul.Translator.translator import min_z,max_z,min_mass
