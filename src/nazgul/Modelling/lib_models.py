@@ -4,13 +4,11 @@
 import os
 import warnings
 import argparse
-import importlib
 import numpy as np
 import sys,dill
 from pathlib import Path
 from corner import corner
 from copy import copy,deepcopy
-from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -23,23 +21,22 @@ from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless,dict_equal
 
 from nazgul.plot_PL import plot_all
-from nazgul.Translator import get_simsuite_code,get_simsuite_from_code,std_sim,std_simsuite,std_subsim
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
-from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
+#from nazgul.mount_doom.cracks_of_doom import LoadLens #,get_extents
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 from nazgul.stat_lenses import get_all_gallens
 
 
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.pathfinder import get_sim_dir,results_dir,path_nazgul
+
+from nazgul.Modelling.pathfinder import model_res_base,get_link_lens_path, get_model_res_dir_from_gallens
 
 # WOI cross-machine lock
 from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
 
 lens_model_list_def   = ['EPL']
 source_model_list_def = ["SERSIC"]
-model_res_base      = results_dir/"models/"
 #PSO
 n_it_std   = 1000
 n_part_std = 300
@@ -47,96 +44,57 @@ n_part_std = 300
 n_burn_std = 700
 n_run_std  = 7000
 
-def get_res_dir(res_dir_base,simsuite,sim,subsim=None,run_type=0):
-    res_dir = Path(res_dir_base)
-    simsuite_code = get_simsuite_code(simsuite)
-    sim_dir = _get_sim_dir_name(simsuite_code=simsuite_code,
-                            sim=sim,subsim=subsim)
-    res_dir = res_dir/sim_dir
-    if run_type!=0:
-        res_dir = res_dir/"test"
-    mkdir(res_dir)
-    return res_dir
-    
-def _get_sim_dir_name(simsuite_code,sim,subsim=None):
-    sim_dir = f"{simsuite_code}_{sim}"
-    if subsim:
-        sim_dir +=f"_{str(subsim)}"
-    return sim_dir
-    
-def _get_sim_dir(gal,simsuite_code=None):
-    if simsuite_code is None:
-        try:
-            simsuite_code =  str(gal.simsuite_code)
-        except AttributeError:
-            # MONKEY PATCH
-            simsuite = gal.simsuite
-            simsuite_code = get_simsuite_code(simsuite)
-    sim    = str(gal.sim)
-    subsim = getattr(gal,"subsim",False)
-    sim_dir = _get_sim_dir_name(simsuite_code=simsuite_code,
-                            sim=sim,subsim=subsim)
-    return sim_dir
-
-def get_model_res_dir(lens,res_dir):
-    gal = lens.gallens.Gal
-    sim_dir = _get_sim_dir(gal)
-    if str(sim_dir) not in str(res_dir):
-        res_dir =  Path(res_dir)/sim_dir
-    res_dir = Path(f"{str(res_dir)}/snap_{gal.snap}_{lens.name}/")
-    return res_dir
-    
-def get_link_lens_path(lens,res_dir):
-    if not hasattr(lens,"model_res_dir"): 
-        lens.model_res_dir = get_model_res_dir(lens,res_dir=res_dir)
-    return lens.model_res_dir/"link_gallens.pkl"
-    
-def setup_lens(lens,res_dir,kwargs_source=None,
+from nazgul.mount_doom.fuel_tank import std_lensfuel
+def setup_lens(lens,
+               res_dir,
                _plot=True,
                overwrite=False,
                check_if_workin_on_it=True,
                workin_on_it=True,
                verbose=True):
-    lens.model_res_dir = get_model_res_dir(lens,res_dir=res_dir)
-    mkdir(lens.model_res_dir)
+    model_res_dir = get_model_res_dir_from_gallens(lens.gallens,res_dir=res_dir)
     # verify that no-one is working on it
     if check_if_workin_on_it:
-        if is_someone_workin_on_it(lens.model_res_dir):
-            warnings.warn(f"This lens, {lens.name} is being worked on, skipping- if not, delete the {workin_on_it} file:\n{lens.model_res_dir}/{workin_on_it}") 
+        if is_someone_workin_on_it(model_res_dir):
+            warnings.warn(f"This lens, {lens.name} is being worked on, skipping - if not, delete the WOI.dll file:\n{model_res_dir}/WOI.dll") 
             return None        
-    set_workin_on_it(lens.model_res_dir,wrk = workin_on_it)
+    set_workin_on_it(model_res_dir,wrk = workin_on_it)
     # verify that there aren't previous results
     if not overwrite:
-        if Path(f"{lens.model_res_dir}/kw_res.dll").is_file():
+        if Path(f"{model_res_dir}/kw_res.dll").is_file():
             warnings.warn(f"This lens, {lens.name} has already results, and I should not overwrite them. If that's not what you want, set overwrite=True") 
             return None
             
-    lens.setup()
+    lens.setup(verbose=verbose)
+    
+    lens.model_res_dir = model_res_dir
     # Note: the following is only used for plotting
     # and mask definition (to find the bright center of the image)
-    Sim = lens.get_Sim() 
-    lens.image_sim = lens.get_lensed_image(Sim=Sim,kwargs_source=kwargs_source, unconvolved=False)
+    lens.image_true = lens.true_image()
     
     if verbose:
         print(f"Saving modelling results in {lens.model_res_dir}") 
-    # For conveniency, but likely not the best idea:
-    print("TODO: This is valid ONLY when we are only modelling a galaxy")
-    lens.kw_extents = get_extents(arcXkpc=lens.gallens.arcXkpc,
-                                  _radec=lens.gallens._radec)
-    lens.kappa_map = lens.gallens.kappa_map
-    lens.Gal = lens.gallens.Gal
-    lens.z_lens = lens.gallens.z_lens
-    lens.z_source = lens.gallens.z_source
-    lens.deltaPix = lens.gallens.deltaPix
+    # For conveniency, but likely not the best idea: -> it's not bad if we don't change the map
+    #lens.kw_extents = get_extents(arcXkpc=lens.gallens.arcXkpc,
+    #                              _radec=lens.gallens._radec)
+    #lens.kappa_map = lens.gallens.kappa_map
+    #lens.Gal       = lens.gallens.Gal
+    #lens.z_lens    = lens.gallens.z_lens
+    #lens.z_source  = lens.gallens.z_source
+    
+    # for the masking:
+    lens.deltaPix  = lens.gallens.deltaPix
     lens.pixel_num = lens.gallens.pixel_num
     
     #lens.kwargs_lens = lens.gallens.kwargs_lens
     if _plot:
-        plot_all(lens,skip_caustic=True)
+        gal_plot = deepcopy(lens.gallens)
+        gal_plot.image_sim = lens.image_true
+        plot_all(gal_plot,skip_caustic=True)
         
     # create link to lens
     src = lens.gallens.pkl_path
-    dst = get_link_lens_path(lens,res_dir=res_dir)
+    dst = get_link_lens_path(lens)
     if not os.path.islink(dst):
         try:
             os.symlink(src,dst)
@@ -155,115 +113,14 @@ def setup_lens(lens,res_dir,kwargs_source=None,
     return lens
 
 
-######################################
-# kwargs_of realistic HST observations used to simulate the "observed" images 
-kwargs_band_HST_camera = {
-    'read_noise': 2,                      # Readout noise
-    'pixel_scale':0.065,                  # 0.065 F160W after drizzling (could also do 0.08 to be more conservative
-    'ccd_gain': 2.35,                     # averaged over the 4 amplifier (does not matter)
-}
-# inspired by F160W taken from idgc07c[nlpq]q_flt.fits 
-sky_count      = 0.11 # after drizzling, clip outliers and take median  (e-/sec)
-exp_time_1exp  = 550 # ~average over 4 exposures
-num_exposures  = 4   #  
-# taken from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/photometric-calibration/ir-photometric-calibration
-# the following ZP computation is also correct, returns 25.937 and the error is 0.008 so it's consistent
-# PHOTFLAM is the inverse sensitivity at the infinite aperture, taken from
-#PHOTFLAM_f160w = 1.9429e-20 
-#PHOTPLAM_f160w = 15369.18
-#ZP_AB_f160w = -2.5*np.log10(PHOTFLAM_f160w) - 21.1 - 5*np.log10(PHOTPLAM_f160w) + 18.6921
-ZP_AB_f160w    = 25.941 
-
-sky_brightness = -np.log10(sky_count) * 2.5 + ZP_AB_f160w
-kwargs_band_HST_obs = {
-    'sky_brightness':sky_brightness,      # ~21.5 mag
-    'exposure_time':exp_time_1exp,        # average time for 1 exposure
-    'magnitude_zero_point':ZP_AB_f160w,   # ~25.9 mag
-    'num_exposures': num_exposures,       # stnd n* of exposures combined in drizzing
-    'psf_type':'PIXEL'                    # kernel to be provided later on
-}
-class band_HST():
-    """
-    Inspired by class HST in lenstronomy.SimulationAPI.ObservationConfig.py 
-    """
-    def __init__(self,
-                 kwargs_camera = kwargs_band_HST_camera,
-                 kwargs_obs    = kwargs_band_HST_obs):
-        self.camera = kwargs_camera
-        self.obs = kwargs_obs
-        # obtained from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf
-        self.psf_path =  Path(f"{path_nazgul}/ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
-    def kwargs_single_band(self):
-        """
-        :return: merged kwargs from camera and obs dicts
-        """
-        kwargs = util.merge_dicts(self.camera, self.obs)
-        return kwargs
-    def get_kwargs_psf(self,pssf_effective=5):
-        if np.abs(int(pssf_effective)-pssf_effective)>1e-7:
-            raise RuntimeError("We should have an integer pssf_effective") 
-        pssf_effective = int(pssf_effective)
-
-        psf_path = self.psf_path
-        
-        delta_pix_native = 0.128          # arcsec/pix, native F160W
-        pssf_orig        = 4              # STScI PSF supersampling vs native
-        delta_pix_psf    = delta_pix_native / pssf_orig   # = 0.032 arcsec/pix
-
-        delta_pix_band   = self.camera["pixel_scale"]     # = 0.08 arcsec/pix (lenstronomy target)
-        pssf_band        = delta_pix_native / delta_pix_band # = 1.6
-        # pssf is the ratio of image pixel scale to PSF pixel scale,
-        # as lenstronomy expects. The PSF must be zoomed to achieve this.
-        # Current PSF pixel scale: delta_pix_psf = 0.032 "/pix
-        # Target PSF pixel scale for given pssf: delta_pix_band / pssf
-        zoom_factor = pssf_effective*pssf_band/pssf_orig        
-    
-        psf = load_fits(psf_path)[-2]
-        psf = _positivise_psf(psf)
-        
-        if zoom_factor<1:
-            warnings.warn("PSSF should be set s.t. zoom_factor>1")
-        
-        if not np.isclose(zoom_factor, 1):
-            psf = zoom(psf, zoom_factor, order=3)
-            psf = _positivise_psf(psf)
-            
-        kwargs_psf = {
-            "psf_type":"PIXEL",
-            "kernel_point_source_normalisation":True,
-            "kernel_point_source": psf,
-            "point_source_supersampling_factor": pssf_effective
-        }
-        return kwargs_psf
-        
-def setup_sim_obs(lens, band_str="HST_F160W", pssf_effective=5):
-    if band_str == "HST_F160W":
-        band = band_HST() 
-    else:
-        raise RuntimeError("Pragma no cover: to implement other bands and PSFs")
-
-    kwargs_psf = band.get_kwargs_psf(pssf_effective=pssf_effective)
-
-    return lens.sim_multi_band_list(band=band, kwargs_psf=kwargs_psf)
-    
-def _positivise_psf(psf):
-    if np.any(psf<0):
-        warnings.warn("Some negative pixels in the PSF")
-        i_psf0,j_psf0 = np.where(psf<0)
-        if i_psf0.shape[0]*100/psf.ravel().shape[0]>30:
-            raise ValueError("PSF has more than 30% negative pixels, something is not right")
-        warnings.warn("Setting minimum value for negative PSF pixels")
-        psf[psf<0] = np.min(psf[psf>0])/100
-    # renormalise it aftwards
-    psf /= psf.sum()
-    return psf
-
-
-def get_kw_lens_mask(lens,image_obs):
+def get_kw_lens_mask(lens,image_obs,mask_center=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach
     #image = kwargs_data["image_data"]
     mask_SE = mask_SEAGLE(lens,image=image_obs) 
-    mask_HD = mask_bright_center(lens)
+    if mask_center:
+        mask_HD = mask_bright_center(lens)
+    else:
+        mask_HD = mask_bright_center(lens,rad_pix=0)
     #,rad=lens.gallens.thetaE*.5) #mask_max_dens(lens)
     mask_LD = resize_mask(mask_HD,image_obs)*mask_SE
     mask_SE_HD = resize_mask(mask_SE,mask_HD)
@@ -276,8 +133,8 @@ def get_kw_lens_mask(lens,image_obs):
     return kw_mask
     
     
-def get_lens_mask(lens,image_obs,plot_mask=True):
-    kw_mask = get_kw_lens_mask(lens,image_obs)
+def get_lens_mask(lens,image_obs,mask_center=True,plot_mask=True):
+    kw_mask = get_kw_lens_mask(lens,image_obs,mask_center=mask_center)
     mask_SE	=	kw_mask["mask_SE"]
     mask_HD	=	kw_mask["mask_HD"]
     mask_LD	=	kw_mask["mask_LD"]
@@ -287,12 +144,13 @@ def get_lens_mask(lens,image_obs,plot_mask=True):
     if plot_mask:
         plt.close()
         plt.close("all")
-        kw_extents = lens.kw_extents
+        kw_extents = lens.gallens.kw_extents
+        image_true  = lens.image_true
         extent_arcsec = kw_extents["extent_arcsec"]
         kw_plot = {"cmap":"hot","extent":extent_arcsec,"origin":"lower"}
         fig,axes = plt.subplots(2,2, figsize=(10, 10))
         ax =axes[0][0]
-        im0 = ax.imshow(np.log10(lens.image_sim),**kw_plot)
+        im0 = ax.imshow(np.log10(image_true),**kw_plot)
         ax.set_title("Image")
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -302,7 +160,7 @@ def get_lens_mask(lens,image_obs,plot_mask=True):
         ax.set_title("Masked Image")
         mask_nan = copy(mask_comb_HD)
         mask_nan[np.where(mask_nan==0)] = np.nan
-        im0 = ax.imshow(np.log10(mask_nan*lens.image_sim),**kw_plot)
+        im0 = ax.imshow(np.log10(mask_nan*image_true),**kw_plot)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(im0, cax=cax, orientation='vertical')   
@@ -336,8 +194,10 @@ def add_gaussian_tE_prior(lens,kwargs_likelihood,sig_tE=0.5):
     return kwargs_likelihood
         
 
-def get_kwargs_likelihood(lens,image_obs,plot_mask=True):
-    mask = get_lens_mask(lens,image_obs,plot_mask=plot_mask)
+def get_kwargs_likelihood(lens,image_obs,mask_center=True,plot_mask=True):
+    mask = get_lens_mask(lens,image_obs,
+                         mask_center=mask_center,
+                         plot_mask=plot_mask)
     
     kwargs_likelihood = {'check_bounds': True, # punish out-of-bound soulutions
                      #'force_no_add_image': False,
@@ -466,6 +326,7 @@ def load_kwargs_result(res_dir):
     nm_res = f"{res_dir}/kw_res.dll"   
     kwargs_result = load_whatever(nm_res)
     return kwargs_result
+    
 def load_kwargs_input(res_dir):
     nm_res = f"{res_dir}/kw_input.dll"   
     kwargs_result = load_whatever(nm_res)
@@ -483,8 +344,7 @@ def get_model_plot(res_dir,
         kwargs_result = load_kwargs_result(res_dir)
     kwargs_model      = kw_input["kwargs_model"]
     kwargs_likelihood = kw_input["kwargs_likelihood"]
-    modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
-                          arrow_size=0.02, cmap_string="gist_heat",
+    modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result,
                           image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
     return modelPlot
 
@@ -492,33 +352,46 @@ def load_mblo(res_dir):
     nm_mblo = f"{res_dir}/multi_band_list_out.dll"
     multi_band_list_out = load_whatever(nm_mblo)
     return multi_band_list_out
+
+def plot_modelplot_massmodel(modelPlot,band_index_plot=0):
+    im0 = plt.imshow(np.log10(modelPlot._band_plot_list[band_index_plot]._data))
+    vmin,vmax = im0.get_clim()
+    plt.close()
     
+    f, axes = plt.subplots(2, 3, figsize=(16, 8), sharex=False, sharey=False)
+    kw_modelplot = {"cmap":"gist_heat",
+                    "vmin":vmin,
+                    "vmax":vmax,
+                    "band_index":band_index_plot}
+    kw_modelplot_res = deepcopy(kw_modelplot) 
+    kw_modelplot_res["cmap"] = "bwr"
+    kw_modelplot_res["vmin"] = -3
+    kw_modelplot_res["vmax"] = +3
+    modelPlot.data_plot(ax=axes[0,0], **kw_modelplot)
+    modelPlot.model_plot(ax=axes[0,1],**kw_modelplot)
+    modelPlot.normalized_residual_plot(ax=axes[0,2],**kw_modelplot_res)
+    modelPlot.source_plot(ax=axes[1, 0], delta_pix_source=0.01, num_pix=100, **kw_modelplot)
+    modelPlot.convergence_plot(ax=axes[1, 1], band_index=band_index_plot,vmax=1)
+    modelPlot.magnification_plot(ax=axes[1, 2], band_index=band_index_plot,cmap="PuOr")
+    f.tight_layout()
+    f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
+    return f
+
 def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir,plot_point_sources=False):
     modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
-                          arrow_size=0.02, cmap_string="gist_heat",
                           image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
     
     band_index_plot = 0
-    
-    f, axes = plt.subplots(2, 3, figsize=(16, 8), sharex=False, sharey=False)
-    
-    modelPlot.data_plot(ax=axes[0,0], band_index=band_index_plot)#,v_min=,v_max=band_i.vmax)
-    modelPlot.model_plot(ax=axes[0,1], band_index=band_index_plot)#,v_min=band_i.vmin,v_max=band_i.vmax)
-    modelPlot.normalized_residual_plot(ax=axes[0,2], band_index=band_index_plot)#,v_min=band_i.res_vmin,v_max=band_i.res_vmax)
-    modelPlot.source_plot(ax=axes[1, 0], deltaPix_source=0.01, numPix=100, band_index=band_index_plot)#,v_min=band_i.vmin,v_max=band_i.vmax)
-    modelPlot.convergence_plot(ax=axes[1, 1], band_index=band_index_plot,v_max=1)
-    modelPlot.magnification_plot(ax=axes[1, 2], band_index=band_index_plot)
-    f.tight_layout()
-    f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
+    f_massmodel =  plot_modelplot_massmodel(modelPlot=modelPlot,band_index_plot=band_index_plot)
     nm = f'{res_dir}/mass_model.pdf'
-    plt.savefig(nm)
-    plt.close(f)
+    f_massmodel.savefig(nm)
+    plt.close(f_massmodel)
     print(f"Saving {nm}")
     
     f, axes = plt.subplots(1,2, figsize=(8, 4), sharex=False, sharey=False)
     
-    modelPlot.decomposition_plot(ax=axes[0], band_index=band_index_plot, text='Source light', source_add=True, unconvolved=True)#,v_min=band_i.vmin,v_max=band_i.vmax)
-    modelPlot.decomposition_plot(ax=axes[1], band_index=band_index_plot, text='Source light convolved', source_add=True)#,v_min=band_i.vmin,v_max=band_i.vmax)
+    modelPlot.decomposition_plot(ax=axes[0], band_index=band_index_plot, kwargs_title={"text":'Source light'}, source_add=True, unconvolved=True,cmap="gist_heat")#,vmin=band_i.vmin,vmax=band_i.vmax)
+    modelPlot.decomposition_plot(ax=axes[1], band_index=band_index_plot, kwargs_title={"text":'Source light convolved'}, source_add=True,cmap="gist_heat")#,vmin=band_i.vmin,vmax=band_i.vmax)
     
     f.tight_layout()
     f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
@@ -530,7 +403,7 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
     reduced_chi2 = get_red_chi2(modelPlot=modelPlot,verbose=True)    
     #Normalised plot
     f, axes = plt.subplots(figsize=(10,7))
-    modelPlot.normalized_residual_plot(ax=axes,v_min=-3, v_max=3,text=r"Norm. Resid $\chi^2_{red.}$="+str(np.round(reduced_chi2,2)))
+    modelPlot.normalized_residual_plot(ax=axes,vmin=-3, vmax=3,kwargs_title={"text":r"Norm. Resid $\chi^2_{red.}$="+str(np.round(reduced_chi2,2))})
     nm = f'{res_dir}/normalised_residuals.png'
     plt.savefig(nm)
     print(f"Saving {nm}")
@@ -538,7 +411,7 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
     
     #Caustics
     f, axes = plt.subplots(figsize=(10,7))
-    modelPlot.source_plot(ax=axes, deltaPix_source=0.01, numPix=1000, with_caustics=True)
+    modelPlot.source_plot(ax=axes, delta_pix_source=0.01, num_pix=1000,cmap="gist_heat")
     f.tight_layout()
     f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
     nm = f'{res_dir}/caustics.png'
@@ -547,8 +420,8 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
     plt.close(f)
     if plot_point_sources:
         f, axes = plt.subplots(figsize=(10,7))
-        modelPlot.decomposition_plot(ax=axes, text='Point source position', source_add=False, \
-                        lens_light_add=False, point_source_add=True, v_min=-1, v_max=1)
+        modelPlot.decomposition_plot(ax=axes, kwargs_title={"text":'Point source position'}, source_add=False, \
+                        lens_light_add=False, point_source_add=True, vmin=-1, vmax=1,cmap="gist_heat")
         nm = f'{res_dir}/point_source_position.png'
         plt.savefig(nm)
         print(f"Saving {nm}")
@@ -593,147 +466,242 @@ class LensSystemFactory:
     def from_GalLens(self, GalLens, **override):
         return LensSystem.from_GalLens(GalLens, **{**self._kwargs, **override})
 """
-if __name__=="__main__":
-    raise RuntimeError("Do not run this - kept only as a reference")
-    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate and model the lens")
-    parser.add_argument('-rt','--run_type',type=int,dest="run_type",default=0,help= f"""Type of run: 
-        0 = standard, PSO_it = {n_it_std} PSO_prt = {n_part_std} MCMCb = {n_burn_std} MCMCr = {n_run_std}  
-        1 = test run  PSO_it = 3      PSO_prt = 3      MCMCb = 1     MCMCr = 2 
-       (PSO_it: PSO iterations, PSO_prt: PSO particles, MCMCr: MCMC run steps, MCMCb: MCMC burn in steps)\n""")
-    parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=5,help=f"Number of lenses to model")
-    parser.add_argument('-mtE','--min_thetaE',type=float,dest="min_thetaE",default=None,help=f"Min theta_E for the gal to be considered a lens")
-    parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
-    parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
-    parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
-    parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
+import gc
+from nazgul.Modelling.pathfinder import get_res_dir 
+from nazgul.Translator import std_sim,std_simsuite,std_subsim
 
+def model_lens(lens,kw_model,
+               mask_center=True,
+               n_it = n_it_std,
+               n_part= n_part_std,
+               n_burn = n_burn_std,
+               n_run = n_run_std,
+              gauss_tE_prior=True):
+    lens_model_list   = kw_model["lens_model_list"]
+    source_model_list = kw_model["source_model_list"]
+    get_kwargs_params = kw_model["get_kwargs_params"]
+
+    print("\nModelling lens "+lens.name+"\n###############################")   
+    plot_kappamap(lens.gallens.kappa_map, 
+                  extent_kpc=lens.gallens.kw_extents["extent_kpc"],
+                  savename=f"{lens.model_res_dir}/kappa_gal.png")
+    multi_band_list = lens.sim_multi_band_list()
+    image_obs = multi_band_list[0][0]["image_data"]
+    
+    # models
+    kwargs_model = {'lens_model_list': lens_model_list,
+                    'source_light_model_list': source_model_list}
+    
+    
+    kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs,mask_center=mask_center)
+    if gauss_tE_prior:
+        kwargs_likelihood = add_gaussian_tE_prior(lens,kwargs_likelihood)
+
+    kwargs_data_joint = {'multi_band_list': multi_band_list, 'multi_band_type': 'multi-linear'}
+
+    # Params:
+    
+    kwargs_params = get_kwargs_params(lens)
+
+    kwargs_constraints = {#'joint_source_with_point_source': [[0, 0]], 
+    #    'joint_source_with_point_source': list [[i_point_source, k_source], [...], ...],
+    #     joint position parameter between lens model and source light model
+                           #   'num_point_source_list': [4],
+                              'solver_type':'NONE'# 'PROFILE_SHEAR',  # 'PROFILE', \
+                          #'PROFILE_SHEAR', 'ELLIPSE', 'CENTER', 'NONE'
+                              }
+
+    
+    # actual fit:
+    from lenstronomy.Workflow.fitting_sequence import FittingSequence
+    fitting_seq = FittingSequence(kwargs_data_joint, kwargs_model, kwargs_constraints, kwargs_likelihood, kwargs_params)
+    fitting_kwargs_list = [['PSO', {'sigma_scale': 1., 'n_particles': n_part, 'n_iterations':n_it}]
+                      ,
+                       ['MCMC', {'n_burn': n_burn, 'n_run': n_run, 'walkerRatio': 5, 'sigma_scale': .1}]
+        ]
+    kw_input = {"kwargs_data_joint":   kwargs_data_joint,
+                "kwargs_model":        kwargs_model, 
+                "kwargs_constraints":  kwargs_constraints, 
+                "kwargs_likelihood":   kwargs_likelihood, 
+                "kwargs_params":       kwargs_params,
+                "fitting_kwargs_list": fitting_kwargs_list,
+                #"kw_add_lenses":       kw_add_lenses
+               }
+    nm_input = f"{lens.model_res_dir}/kw_input.dll"
+    save_data(kw_input,nm_input,"input")
+    
+    chain_list = fitting_seq.fit_sequence(fitting_kwargs_list)
+    kwargs_result = fitting_seq.best_fit()
+    print("kwargs_result",kwargs_result)
+    nm_res = f"{lens.model_res_dir}/kw_res.dll"
+    save_data(kwargs_result,nm_res,"result output")
+    
+    
+    # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
+    multi_band_list_out = fitting_seq.multi_band_list
+    nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.dll"
+    save_data(multi_band_list_out,nm_mblo,"output multiband list")
+    
+    plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir=lens.model_res_dir)
+    # don't store pso results
+    emcee = chain_list[-1]
+    sampler_type, mc_sample, param_mcmc, mc_logL   = emcee
+    emcee_path = f'{lens.model_res_dir}/emcee_chain.dll'
+    save_data(emcee,emcee_path,"emcee chain")
+
+    corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
+    nm = f'{lens.model_res_dir}/mcmc_post.pdf'
+    plt.savefig(nm)
+    print(f"Saving {nm}")
+    plt.close()
+        
+    # test
+    for i in range(len(chain_list)):
+        chain_plot.plot_chain_list(chain_list, i)
+    nm = f'{lens.model_res_dir}/chain_plot.pdf'
+    plt.savefig(nm)
+    print(f"Saving {nm}")
+    # reset flag to false
+    set_workin_on_it(lens.model_res_dir,wrk = False)
+
+    # Cleanup to save memory
+    plt.close("all")
+    del lens
+    del chain_list
+    del kw_input
+    del multi_band_list
+    gc.collect()
+    return None 
+    
+def run_model(res_dir_base,
+                lensfuel,
+                kw_model,
+                gauss_tE_prior=True,
+                prog_name=sys.argv[0],
+              mask_center=True,
+              description="Simulate and model the lens",
+              n_it = n_it_std,
+              n_part= n_part_std,
+              n_burn = n_burn_std,
+              n_run = n_run_std,
+             lenses2skip = [],
+             lenses2model = [],
+              **kwargs
+             ):
+    parser = argparse.ArgumentParser(prog=prog_name,description=description)
+    parser.add_argument('-rt','--run_type',type=int,dest="run_type",default=0,help= f"""Type of run:
+        0 = standard, PSO_it = {n_it} PSO_prt = {n_part} MCMCb = {n_burn} MCMCr = {n_run}  
+        1 = test run  PSO_it = 3      PSO_prt = 3      MCMCb = 1     MCMCr = 2 
+        2 = test run (longer)  PSO_it = 100      PSO_prt = 20      MCMCb = 100     MCMCr = 200 
+        (PSO_it: PSO iterations, PSO_prt: PSO particles, MCMCr: MCMC run steps, MCMCb: MCMC burn in steps)\n""")
+    parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=np.nan,help=f"Number of lenses to model")
+    parser.add_argument('-mtE','--min_thetaE',type=float,dest="min_thetaE",default=.3,help=f"Min theta_E for the gal to be considered a lens")
+    parser.add_argument('-ovr','--overwrite_results',dest="overwrite_results",
+                        default=False,action="store_true",help=f"Overwrite previous results")
+    if not "sim" in kwargs:
+        parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    if not "snap" in kwargs:
+        parser.add_argument('-snap','--snap',nargs="+",type=str,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
+    if not "simsuite" in kwargs:
+        parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    if not "subsim" in kwargs:
+        parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
     args       = parser.parse_args()
     run_type   = args.run_type
     n_lenses   = args.n_lenses
     min_thetaE = args.min_thetaE 
-    snaps      = args.snaps #[25,26,27]
-    sim        = args.sim
-    subsim     = args.subsim
-    simsuite   = args.simsuite
+    if not "snap" in kwargs:
+        snaps      = args.snaps #[25,26,27]
+    if not "sim" in kwargs:
+        sim        = args.sim
+    if not "subsim" in kwargs:
+        subsim     = args.subsim
+    if not "simsuite" in kwargs:
+        simsuite   = args.simsuite
+    
+    check_if_workin_on_it = True
+    overwrite_results = args.overwrite_results
     if run_type==0:
-        n_iterations = int(n_it_std) #number of iteration of the PSO run
-        n_particles  = int(n_part_std) #number of particles in PSO run
-        n_burn = int(n_burn_std) #MCMC burn in steps
-        n_run  = int(n_run_std) #MCMC total steps 
+        n_it    = int(n_it) #number of iteration of the PSO run
+        n_part  = int(n_part) #number of particles in PSO run
+        n_burn  = int(n_burn) #MCMC burn in steps
+        n_run   = int(n_run) #MCMC total steps 
     elif run_type ==1:
         print("Test Run")
-        n_iterations = int(3) #number of iteration of the PSO run
-        n_particles  = int(3) #number of particles in PSO run
+        overwrite_results = True
+        check_if_workin_on_it = False
+        n_it   = int(3) #number of iteration of the PSO run
+        n_part = int(3) #number of particles in PSO run
         n_run  = int(2) #MCMC total steps 
         n_burn = int(1) #MCMC burn in steps
+        if n_lenses>3 or np.isnan(n_lenses):
+            print("Resetting n_lenses to 3 because test")
+            n_lenses = 3
+    elif run_type ==2:
+        print("Test Run - longer")
+        overwrite_results = True
+        check_if_workin_on_it = False
+        n_it   = int(100) #number of iteration of the PSO run
+        n_part = int(20) #number of particles in PSO run
+        n_run  = int(200) #MCMC total steps 
+        n_burn = int(100) #MCMC burn in steps
+        if n_lenses>2 or np.isnan(n_lenses):
+            print("Resetting n_lenses to 1 because long test")
+            n_lenses = 2
     else:
         raise RuntimeError("Give a valid run_type or implement it your own")
-
-    lenses2skip = ["Sub_Gn22SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj1","Sub_Gn3SGn0_Npix200_PartAS_Prj2"]
-    #["Sub_Gn3SGn0_Npix200_PartAS_Prj1","Sub_Gn22SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj2"]
+    
     kw_get_all_gallens = {"sim":sim,
                           "subsim":subsim,
-                           "simsuite":simsuite,
-                            "snaps":snaps}
+                          "simsuite":simsuite,
+                          "snaps":snaps}
     res_dir = get_res_dir(res_dir_base,simsuite,sim,
                           subsim=subsim,run_type=run_type)
-    gal_lenses  = get_lenses2model(res_dir=res_dir,
-                                   reload=True,
-                                   kw_get_all_gallens=kw_get_all_gallens,
-                                   n_lenses=n_lenses,
-                                   min_thetaE=min_thetaE,
-                                   skip_lenses=lenses2skip)
-    for gal_lens in gal_lenses: 
-        print("Loading lens "+gal_lens.name+"\n")
-        print("Adding LOS effects")
-        kw_los = get_kw_los()
-        kw_add_lenses = {"lens_model_list":["LOS"],
-                        "kwargs_lens":[kw_los]}
-        lens = LensSystem.from_GalLens(gal_lens,kwargs_add_lenses=kw_add_lenses)
 
-        lens = setup_lens(lens,res_dir=res_dir,check_if_workin_on_it=True) #change it with res_dir_base of the given model
-        if lens is None:
-            continue
-        plot_kappamap(lens.gallens.kappa_map, 
-                      extent_kpc=lens.gallens.kw_extents["extent_kpc"],
-                      savename=f"{res_dir}/kappa_gal.png")
-        multi_band_list = setup_sim_obs(lens)
-        image_obs = multi_band_list[0][0]["image_data"]
+    if lenses2model == []:
+        print("\nGetting catalogue of lenses 2 model\n###################\n")
+        gal_lenses  = get_lenses2model(res_dir=res_dir,
+                                       reload=True,
+                                       kw_get_all_gallens=kw_get_all_gallens,
+                                       n_lenses=np.nan, # has to load all of them anyway
+                                       min_thetaE=min_thetaE,
+                                       skip_lenses=lenses2skip)
+        print("\nCatalogue of lenses 2 model obtained\n###################\n")
         
-        # models
-        kwargs_model = {'lens_model_list': lens_model_list,
-                        'source_light_model_list': source_model_list}
-        
-        
-        kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs)
-    
-        kwargs_data_joint = {'multi_bakw[nd_list': multi_band_list, 'multi_band_type': 'multi-linear'}
-    
-        # Params:
-        
-        kwargs_params = get_kwargs_params(lens)
-    
-        kwargs_constraints = {#'joint_source_with_point_source': [[0, 0]], 
-        #    'joint_source_with_point_source': list [[i_point_source, k_source], [...], ...],
-        #     joint position parameter between lens model and source light model
-                               #   'num_point_source_list': [4],
-                                  'solver_type':'NONE'# 'PROFILE_SHEAR',  # 'PROFILE', \
-                              #'PROFILE_SHEAR', 'ELLIPSE', 'CENTER', 'NONE'
-                                  }
-    
-        
-        # actual fit:
-        from lenstronomy.Workflow.fitting_sequence import FittingSequence
-        fitting_seq = FittingSequence(kwargs_data_joint, kwargs_model, kwargs_constraints, kwargs_likelihood, kwargs_params)
-        fitting_kwargs_list = [['PSO', {'sigma_scale': 1., 'n_particles': n_particles, 'n_iterations':n_iterations}]
-                          ,
-                           ['MCMC', {'n_burn': n_burn, 'n_run': n_run, 'walkerRatio': 5, 'sigma_scale': .1}]
-            ]
-        kw_input = {"kwargs_data_joint":   kwargs_data_joint,
-                    "kwargs_model":        kwargs_model, 
-                    "kwargs_constraints":  kwargs_constraints, 
-                    "kwargs_likelihood":   kwargs_likelihood, 
-                    "kwargs_params":       kwargs_params,
-                    "fitting_kwargs_list": fitting_kwargs_list,
-                    "kw_add_lenses":       kw_add_lenses
-                   }
-        nm_input = f"{res_dir}/kw_input.dll"
-        save_data(kw_input,nm_input,"input")
-        
-        chain_list = fitting_seq.fit_sequence(fitting_kwargs_list)
-        kwargs_result = fitting_seq.best_fit()
-        print("kwargs_result",kwargs_result)
-        nm_res = f"{res_dir}/kw_res.dll"
-        save_data(kwargs_result,nm_res,"result output")
-        
-        
-        # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
-        multi_band_list_out = fitting_seq.multi_band_list
-        nm_mblo = f"{res_dir}/multi_band_list_out.dll"
-        save_data(multi_band_list_out,nm_mblo,"output multiband list")
+        for i,gal_lens in enumerate(gal_lenses):  
+            print("\nLoading lens "+gal_lens.name)
 
-
-        plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir=res_dir)
-        
-        if run_type==0:
-            # don't store pso results
-            emcee = chain_list[-1]
-            sampler_type, mc_sample, param_mcmc, mc_logL   = emcee
-            emcee_path = f'{lens.model_res_dir}/emcee_chain.dll'
-            save_data(emcee,emcee_path,"emcee chain")
-
-            corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
-            nm = f'{lens.model_res_dir}/mcmc_post.pdf'
-            plt.savefig(nm)
-            print(f"Saving {nm}")
-            plt.close()
+            lens = LensSystem.from_GalLens(gal_lens,lensFuel=lensfuel)
+            lens = setup_lens(lens,
+                              res_dir=res_dir,
+                              check_if_workin_on_it=check_if_workin_on_it,
+                              overwrite=overwrite_results)
             
-        # test
-        for i in range(len(chain_list)):
-            chain_plot.plot_chain_list(chain_list, i)
-        nm = f'{lens.model_res_dir}/chain_plot.pdf'
-        plt.savefig(nm)
-        print(f"Saving {nm}")
-        plt.close()
-        set_workin_on_it(lens.model_res_dir,wrk = False)
-    
+            if lens is None: #means that someone is workin on it
+                continue
+            model_lens(lens,kw_model,
+                       n_it   = n_it,
+                       n_part = n_part,
+                       n_burn = n_burn,
+                       n_run  = n_run,
+                       mask_center=mask_center,
+                       gauss_tE_prior=gauss_tE_prior)
+            # only do n lenses:
+            if i==n_lenses:
+                break
+    else:
+        for i,lens2setup in enumerate(lenses2model):
+            lens = setup_lens(lens=lens2setup,
+                              res_dir=res_dir,
+                              check_if_workin_on_it=check_if_workin_on_it,
+                              overwrite=overwrite_results)           
+            model_lens(lens,kw_model,
+                       n_it   = n_it,
+                       n_part = n_part,
+                       n_burn = n_burn,
+                       n_run  = n_run,
+                       mask_center=mask_center,              
+                       gauss_tE_prior=gauss_tE_prior)
+            # only do n lenses:
+            if i==n_lenses:
+                break
