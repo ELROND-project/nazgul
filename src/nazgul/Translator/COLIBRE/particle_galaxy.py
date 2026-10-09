@@ -17,7 +17,7 @@ from nazgul.pathfinder import get_gal_dir,path_nazgul
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
 from nazgul.Translator.COLIBRE import simsuite_name,simsuite_short_name,part_type_list,check_part_type
 
-from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
+from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap,standardise_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
 from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_gal,get_all_kw_gal
 
