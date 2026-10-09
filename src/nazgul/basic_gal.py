@@ -13,19 +13,19 @@ def store_class(ist_class,path=None,overwrite=True,update=True,LoadClass=LoadCla
     """
     if path is None:
         path = ist_class.pkl_path
-    if Path(path).is_file and not overwrite:
+    if Path(path).is_file() and not overwrite:
         warnings.warn(RuntimeWarning("Previous instance exists and we are not overwriting it"))
         return False
-    while update:
-        # check that if we can update the class
-        prev_class = LoadClass(path)
-        if not prev_class or prev_class != ist_class:
-            break
+    # check that if we can update the class
+    prev_class = LoadClass(path)
+    if update and prev_class and prev_class == ist_class:
         # if common attribute, they are overwritten by new instance
-        ist_class.__dict__ = {**prev_class.__dict__,**ist_class.__dict__}
-        break
+        ist_class.__dict__ = {**prev_class.__dict__, **ist_class.__dict__}
+    if not update and prev_class:
+            if prev_class!=ist_class:
+                raise RuntimeError("Cannot update, but previous file present and differnt from current one: Cannot store current file")
     _store_class(ist_class,path=path)
-    return 
+    return True
 
 def _store_class(ist_class,path=None):
     """Serialize the current object to disk using dill.
@@ -37,13 +37,8 @@ def _store_class(ist_class,path=None):
     print(f"Saved {path}")
 
     
-class BasicGal:
-    """General useful class for galaxies (being ensemble of particles or already lenses)
-    """
-    # Large attributes to not store and to recompute/reload BEFORE computation
-    _large_attributes_setup = []
-    # Large attributes to not store and to recompute/reload AFTER computation
-    _large_attributes_unpack = []
+class BasicClass:
+    """General useful class for everything  """
     ### Class Structure ####
     ########################
     def _identity(self):
@@ -65,11 +60,52 @@ class BasicGal:
 
     def __str__(self):
         raise NotImplementedError 
+    
+
+    ########################
+    def ReadClass(self,cl):
+        # e.g. return ReadGal(cl)
+        raise NotImplementedError
+        pre_cl = ReadClass
+        pre_cl.unpack()
+        return pre_cl
         
+    def upload_prev(self):
+        prev_Class = self.ReadClass(self)
+        if prev_Class is False or prev_Class != self:
+            return False
+        # if common attribute, they are overwritten by previous:
+        self.__dict__ = {**self.__dict__,**prev_Class.__dict__}
+        return True
+        
+    def verbose_assert_almost_equal(self,value1,value2=1,decimal=3,msg=None):
+        # a verbose way of giving info if if fails
+        try:
+            np.testing.assert_almost_equal(value1,value2,decimal=decimal)
+        except AssertionError as AssErr:
+            if msg:
+                AssErr.add_note(msg)
+            #print("Error for \n"+str(self))
+            raise AssErr
+        return 0
+
+
+
+class BasicGal(BasicClass):
+    """General useful class for galaxies (being ensemble of particles or already lenses)
+    """
+    # Large attributes to not store and to recompute/reload BEFORE computation
+    _large_attributes_setup = []
+    # Large attributes to not store and to recompute/reload AFTER computation
+    _large_attributes_unpack = []
+    # Attributes not to store in any case (but the lack thereof won't trigger unpacking or set-up)
+    _attributes_not_to_store = []
+    ### Class Structure ####
+    ########################        
     def __getstate__(self):
         state = self.__dict__.copy()
         # combine the large attrs to delete
-        _large_attributes = self._large_attributes_setup + self._large_attributes_unpack
+        _large_attributes = self._large_attributes_setup + self._large_attributes_unpack + self._attributes_not_to_store
         # remove large attributes (if present, can be loaded again)
         if _large_attributes==[]:
             raise NotImplementedError("Implement a list of _large_attributes to delete before storing")
@@ -128,31 +164,3 @@ class BasicGal:
         """
         print("Setting up basic gal ...")
         raise NotImplementedError
-        
-    ########################
-    ########################
-    def ReadClass(self,cl):
-        # e.g. return ReadGal(cl)
-        raise NotImplementedError
-        pre_cl = ReadClass
-        pre_cl.unpack()
-        return pre_cl
-        
-    def upload_prev(self):
-        prev_Class = self.ReadClass(self)
-        if prev_Class is False or prev_Class != self:
-            return False
-        # if common attribute, they are overwritten by previous:
-        self.__dict__ = {**self.__dict__,**prev_Class.__dict__}
-        return True
-        
-    def verbose_assert_almost_equal(self,value1,value2=1,decimal=3,msg=None):
-        # a verbose way of giving info if if fails
-        try:
-            np.testing.assert_almost_equal(value1,value2,decimal=decimal)
-        except AssertionError as AssErr:
-            if msg:
-                AssErr.add_note(msg)
-            #print("Error for \n"+str(self))
-            raise AssErr
-        return 0
