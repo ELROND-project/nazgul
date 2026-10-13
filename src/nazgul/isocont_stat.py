@@ -19,13 +19,18 @@ from nazgul.pathfinder import std_data_dir,tmp_dir
 
 def get_DPA(isolist,i_tE):
     # get Pointing angle in degrees wrt PA at theta_E 
-    pa     = isolist.pa/np.pi*180. # deg
-    if np.any(np.abs(np.diff(pa))>135):
-        pa[np.where(pa>135)] -=180
+    pa     = get_PA(isolist)
     pa_i = pa[i_tE]
     Dpa = pa-pa_i
     return Dpa
-
+    
+def get_PA(isolist):
+    # get Pointing angle in degrees wrt PA at theta_E 
+    PA     = isolist.pa/np.pi*180. # deg
+    if np.any(np.abs(np.diff(PA))>135):
+        PA[np.where(PA>135)] -=180
+    return PA
+    
 def get_xi_tE(isolist,RE_pix=1):
     """Get circularised radius from isolist, scaled by tE (given in pixel)"""
     q = 1-isolist.eps
