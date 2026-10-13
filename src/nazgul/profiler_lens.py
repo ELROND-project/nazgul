@@ -67,7 +67,7 @@ class ProfileLens:
         self.lens_system.kw_truths = _standardise_truths(kw_truths)
         #self.lens_system.kw_ugly_truths = _standardise_truths(kw_truths,pretty=False)
         try:
-            model_res_dir = _get_gallens_path(name,model=model,snaps=[snap],
+            model_res_dir = _get_gallens_path(name,model=model,snaps=[snap],kw_sim=self.kw_sim,
                                               check_if_workin_on_it=check_if_workin_on_it)
         except RuntimeError:
             model_res_dir = None   
@@ -251,7 +251,7 @@ class ProfileLens:
         for kw in chain.data_columns:
             if kw in self.lens_system.kw_truths.keys():
                 limited_truth[kw] = float(self.lens_system.kw_truths[kw])
-        c.add_truth(Truth(location=limited_truth))
+        c.add_truth(Truth(location=limited_truth,line_style="--",color="k"))
         # Verify Truths are within range of plotting
         extents = {}
         for kw in limited_truth.keys():
@@ -267,6 +267,14 @@ class ProfileLens:
                 extents[kw] = (min_arr,_truth+padd)         
         c.plotter.config.extents=extents
         fig = c.plotter.plot()
+        axes = fig.get_axes()
+        axi = axes[int(len(axes)**.5)-1]
+        
+        for kw in limited_truth:
+            axi.axvline(0,label= kw +"="+str(np.round(limited_truth[kw],2)),ls="--",color="k")
+        fig.legend()
+        axi.remove()
+
         #fig.savefig("tmp/del.pdf")
         return fig
         
