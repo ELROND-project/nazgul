@@ -32,17 +32,18 @@ if __name__=="__main__":
     # to consider later to skip and do all lenses:
     GS_lenses_model_name = "DCE"
     snap = 110
+    """
     kw_GS_lenses         = get_GS_cat(model=GS_lenses_model_name)
     names_GS_lenses      = get_GS_names(kw_GS_lenses)
     
     lenses2model = [ultimate_lenssys_loader(str(gs_lens),lensFuel=lensfuel,prj=None,kw_sim=std_kw_sim,
                                              snap=snap) for gs_lens in names_GS_lenses]
-
+    """
     run_model(res_dir_base,
               lensfuel=lensfuel,
               kw_model=kw_model,
               gauss_tE_prior=True,
               prog_name=sys.argv[0],
               mask_center=False,
-              lenses2model= lenses2model,
+              #lenses2model= lenses2model,
               description=description_model)
