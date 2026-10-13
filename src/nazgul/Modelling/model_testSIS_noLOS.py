@@ -24,61 +24,12 @@ mkdir(res_dir_base)
 description_model = "Try to model a single SIS, and model the lens with SIS, and an elliptical sersic source (without LOS)"
 
 
+from nazgul.Modelling.model_testSIS import _get_kwargs_params,create_SIS_gallens
+    
 def get_kwargs_params(lens):
-    # Params:
-    # initial guess of non-linear parameters, we chose different starting parameters than the truth #
-    tE = lens.gallens.thetaE.value
+    return _get_kwargs_params(lens,los_included=False)
+    
 
-    # LOS added separately    
-    kwargs_lens_init = [{'theta_E':     tE *np.random.normal(1,.1,1)[0], 
-                         'center_x':    0.0, 
-                         'center_y':    0.0}]
-    kwargs_source_init = [{'R_sersic': 0.03, 
-                           'n_sersic': 1.0,
-                           'e1':       0.0, 
-                           'e2':       0.0, 
-                           'center_x': 0.0, 
-                           'center_y': 0.0}]
-    
-    # initial spread in parameter estimation #
-    kwargs_lens_sigma = [{'theta_E':     0.3, 
-                          'center_x':    0.1, 
-                          'center_y':    0.1}]
-    kwargs_source_sigma = [{'R_sersic': 0.1, 
-                            'n_sersic': 0.5, 
-                            'e1':       0.2, 
-                            'e2':       0.2, 
-                            'center_x': 0.1, 
-                            'center_y': 0.1}]
-    
-    # hard bound lower limit in parameter space #
-    kwargs_lower_lens = [{'theta_E':     0.0, 
-                          'center_x':   -10., 
-                          'center_y':   -10.}]
-    kwargs_lower_source = [{'R_sersic': 0.001, 
-                            'e1':       -0.5, 
-                            'e2':       -0.5,
-                            'n_sersic': .5, 
-                            'center_x': -10, 
-                            'center_y': -10}]
-    # hard bound upper limit in parameter space #
-    kwargs_upper_lens = [{'theta_E':     3*tE, 
-                          'center_x':    10.0,
-                          'center_y':    10.0}]
-    kwargs_upper_source = [{'R_sersic': 10, 
-                            'e1':       0.5, 
-                            'e2':       0.5,
-                            'n_sersic': 5., 
-                            'center_x': 10, 
-                            'center_y': 10}]    
-    lens_params = [kwargs_lens_init, kwargs_lens_sigma, [{}], kwargs_lower_lens, kwargs_upper_lens]
-    source_params = [kwargs_source_init, kwargs_source_sigma, [{}], kwargs_lower_source, kwargs_upper_source]
-    
-    kwargs_params = {'lens_model': lens_params,
-                    'source_model': source_params}
-    return kwargs_params
-
-    
 kw_model = {"lens_model_list":lens_model_list,
             "source_model_list":source_model_list,
             "get_kwargs_params":get_kwargs_params}
