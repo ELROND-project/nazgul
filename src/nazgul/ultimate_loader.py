@@ -67,7 +67,19 @@ def get_kw_Gal_colibre(name,snap=None,z=None,kw_sim=std_kw_sim):
     kw_Gal = {"snap":snap}
     kw_Gal["soap_index"] = get_soap_Gal_colibre(name)
     return kw_Gal
-    
+
+def get_kw_Gal_ANL_TEST(name,*args,**kwargs):
+    kw_Gal = {}
+    if "SIS" in name:
+        kw_Gal["profile"] = "SIS"
+        tE,nS_ = name.split("_tE")[1].split("_nS")
+        nS = nS_.split("_")[0]
+        kw_Gal["theta_E"] = float(tE) 
+        kw_Gal["n_smpl"]  = int(float(nS))
+
+    else:        
+        raise RuntimeError("pragma: no cover")  
+    return kw_Gal
 
 def ultimate_gal_loader(name, #this could be anything as long as it has a number (for Colibre
                     snap,
@@ -81,6 +93,10 @@ def ultimate_gal_loader(name, #this could be anything as long as it has a number
         snap   = kw_Gal["snap"] #
         from nazgul.Translator.COLIBRE.particle_galaxy import get_gal_name
         name = get_gal_name(kw_Gal)
+    elif kw_sim["simsuite"].upper()=="ANL_TEST":
+        kw_Gal = get_kw_Gal_ANL_TEST(name)
+        from nazgul.Translator.ANL_TEST.pathfinder import get_galname
+        name = get_galname(kw_Gal)
     else:
         raise RuntimeError("pragma: no cover")  
     #gal = PartGal(kw_Gal,snap=snap,**kw_sim)
@@ -103,7 +119,10 @@ def extract_prj(name):
         prj = "prj"
     else:
         prj = "proj"
-    return int(name.split(prj)[1])
+    int_prj = name.split(prj)[1]
+    if type(int_prj)==list:
+        int_prj = int_prj[0]
+    return int(int_prj)
 
 def get_prj(name,prj=None):
     if prj is None:
