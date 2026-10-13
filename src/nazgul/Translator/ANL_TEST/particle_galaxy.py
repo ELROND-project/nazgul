@@ -249,4 +249,4 @@ def Gal2MXYZ_part(Gal,part_type):
 
 def standardise_snap(snap,*args,**kwargs):
     # Snap should not be a factor in this Simulation
-    return snap 
+    return "0" 
