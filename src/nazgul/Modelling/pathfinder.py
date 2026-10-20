@@ -65,8 +65,12 @@ def get_model_res_dir(lens_or_gal, res_dir):
         raise TypeError(f"Expected Lens or GalLens, got {type(lens_or_gal)}")
 
     
-def get_link_lens_path(lens):
+def get_link_gallens_path(lens):
     return lens.model_res_dir/"link_gallens.pkl"
+    
+def get_link_lenssys_path(lens):
+    return lens.model_res_dir/"link_lenssys.pkl"
+    
 
 #from importlib import import_module
 #def get_res_dir_base(model):
