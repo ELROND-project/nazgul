@@ -30,7 +30,7 @@ from nazgul.stat_lenses import get_all_gallens
 
 from nazgul.lens_part_LOS import get_kw_los
 
-from nazgul.Modelling.pathfinder import model_res_base,get_link_lens_path, get_model_res_dir_from_gallens
+from nazgul.Modelling.pathfinder import model_res_base,get_link_gallens_path,get_link_lenssys_path, get_model_res_dir_from_gallens
 
 # WOI cross-machine lock
 from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
@@ -92,9 +92,16 @@ def setup_lens(lens,
         gal_plot.image_sim = lens.image_true
         plot_all(gal_plot,skip_caustic=True)
         
-    # create link to lens
+    # create link to gallens and lens_sis 
     src = lens.gallens.pkl_path
-    dst = get_link_lens_path(lens)
+    dst = get_link_gallens_path(lens)
+    if not os.path.islink(dst):
+        try:
+            os.symlink(src,dst)
+        except FileExistsError as e:
+            print(f"This error \n{e}\n should not happen, but it's not too important")
+    src = lens.pkl_path
+    dst = get_link_lenssys_path(lens)
     if not os.path.islink(dst):
         try:
             os.symlink(src,dst)
@@ -377,7 +384,7 @@ def plot_modelplot_massmodel(modelPlot,band_index_plot=0):
     f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
     return f
 
-def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir,plot_point_sources=False):
+def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir,plot_caustic=True,plot_point_sources=False):
     modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
                           image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
     
@@ -410,14 +417,15 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
     plt.close(f)
     
     #Caustics
-    f, axes = plt.subplots(figsize=(10,7))
-    modelPlot.source_plot(ax=axes, delta_pix_source=0.01, num_pix=1000,cmap="gist_heat")
-    f.tight_layout()
-    f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
-    nm = f'{res_dir}/caustics.png'
-    plt.savefig(nm)
-    print(f"Saving {nm}")
-    plt.close(f)
+    if plot_caustic:
+        f, axes = plt.subplots(figsize=(10,7))
+        modelPlot.source_plot(ax=axes, delta_pix_source=0.01, num_pix=1000,cmap="gist_heat")
+        f.tight_layout()
+        f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
+        nm = f'{res_dir}/caustics.png'
+        plt.savefig(nm)
+        print(f"Saving {nm}")
+        plt.close(f)
     if plot_point_sources:
         f, axes = plt.subplots(figsize=(10,7))
         modelPlot.decomposition_plot(ax=axes, kwargs_title={"text":'Point source position'}, source_add=False, \
@@ -491,7 +499,8 @@ def model_lens(lens,kw_model,
     # models
     kwargs_model = {'lens_model_list': lens_model_list,
                     'source_light_model_list': source_model_list}
-    
+    if hasattr(kw_model,"profile_kwargs_list"):
+        kwargs_model["profile_kwargs_list"] = kw_model["profile_kwargs_list"]
     
     kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs,mask_center=mask_center)
     if gauss_tE_prior:
@@ -555,12 +564,14 @@ def model_lens(lens,kw_model,
     print(f"Saving {nm}")
     plt.close()
         
-    # test
+    # discard chain plot, if needed it can be reproduced
+    """
     for i in range(len(chain_list)):
         chain_plot.plot_chain_list(chain_list, i)
     nm = f'{lens.model_res_dir}/chain_plot.pdf'
     plt.savefig(nm)
     print(f"Saving {nm}")
+    """
     # reset flag to false
     set_workin_on_it(lens.model_res_dir,wrk = False)
 
