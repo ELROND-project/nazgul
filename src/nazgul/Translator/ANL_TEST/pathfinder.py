@@ -9,3 +9,5 @@ def get_galname(kw_gal,**kwargs):
     elif prof == "SIE":
         galname += f"_e1{kw_gal['e1']}_e2{kw_gal['e2']}"
         return galname
+    else:
+        raise ValueError("kw_gal['profile'] either SIS or SIE, not "+prof)

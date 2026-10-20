@@ -6,6 +6,8 @@ from lenstronomy.Util.param_util import ellipticity2phi_q, phi_q2_ellipticity
 
 from python_tools.tools import to_dimless,short_SciNot,ensure_unit,mkdir
 
+from nazgul.lib_cosmo import SigCrArc2 # sigma crit in Msun/arcsec^2
+
 n_smpl   = int(5e5)
 theta_E  = 0.8 #arcsec
 z_lens   = 0.1
@@ -15,21 +17,6 @@ cnty     = 0
 
 q,phi    = .3,0
 e1,e2    = phi_q2_ellipticity(phi=phi,q=q)
-
-
-def SigCrit(cosmo=default_cosmo,z_lens=z_lens,z_source=z_source):
-    cosmo_dd  = cosmo.angular_diameter_distance(z_lens).to("kpc")   #kpc
-    cosmo_ds  = cosmo.angular_diameter_distance(z_source).to("kpc") #kpc
-    cosmo_dds = cosmo.angular_diameter_distance_z1z2(z1=z_lens,z2=z_source).to("kpc") #kpc
-
-    Sigma_Crit        = (cosmo_ds*const.c**2)/(4*np.pi*const.G*cosmo_dds*cosmo_dd) #
-    return Sigma_Crit.to("Msun /(kpc kpc)")
-
-def SigCrArc2(cosmo=default_cosmo,z_lens=z_lens,z_source=z_source):
-    arcXkpc           = cosmo.arcsec_per_kpc_proper(z_lens) # ''/kpc
-    Sigma_Crit        = SigCrit(cosmo=cosmo,z_lens=z_lens,z_source=z_source)
-    Sigma_Crit_arcs2  = Sigma_Crit.to("Msun /(kpc kpc)")/(arcXkpc*arcXkpc)
-    return Sigma_Crit_arcs2
 
 def sample_SIS(n_smpl=n_smpl,
                 theta_E=theta_E,
@@ -60,7 +47,7 @@ def sample_SIS(n_smpl=n_smpl,
     Mscale_sun = Mmax.to("Msun")/n_smpl
 
     Mscale_sun = ensure_unit(Mscale_sun,u.Msun)
-    
+
     return kwargs_lens_SIS,Mscale_sun,samples
 
 def sample_SIE(n_smpl=n_smpl,
@@ -145,12 +132,16 @@ def Gal2MXYZ(Gal):
     return Ms,Xs,Ys,Zs 
 
 def gal_path2kwGal(gal_pkl_path):
-    gal_pkl_path = Path(gal_pkl_path)
-    galname =  gal_pkl_path.name
+    gal_pkl_path   = Path(gal_pkl_path)
+    galname        = gal_pkl_path.name
     theta_E,n_smpl = galname.split("tE")[1].split("_nS")
     theta_E,n_smpl = float(theta_E),int(n_smpl.split(".")[0])
     kw_Gal = {"theta_E":theta_E,"n_smpl":n_smpl}
-    return kw_Gal
+    sim    = galname.split("TEST_GAL_")[1].split("_")[0]
+    kw_Gal_full = {"kw_Gal" : kw_Gal,
+                   "sim": sim,
+                   "subsim":None}
+    return kw_Gal_full
 
 def get_rnd_SPG(**kw_galpart):
     raise NotImplementedError()
