@@ -65,16 +65,6 @@ from nazgul.project_gal import ProjGal,ProjectionError,project_Gal
 #Default values
 import nazgul.configurations as conf
 
-# Path definitions:
-# define where to store the obtained lenses classes
-std_sim_lens_path   = path_nazgul/"sim_lens/"
-
-def get_lens_dir(Gal,sim_lens_path=std_sim_lens_path):
-    lens_dir = Path(sim_lens_path)/Gal.sim/f"snap{Gal.snap}_G{Gal.Gn}.{Gal.SGn}"
-    mkdir(lens_dir)
-    Gal.lens_dir = lens_dir
-    return lens_dir
-
 ##########################
 ##########################
 # Sampling of the Profiles
