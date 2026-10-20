@@ -802,7 +802,7 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
     
 warnings.filterwarnings("ignore")
 
-name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS"]
+name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS","GEP","GEP_ellexp"]
 
 kw_names_models = {}
 for nm in name_models:
