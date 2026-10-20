@@ -7,6 +7,7 @@ depending on the particle potential profile chosen (for now AS or PM)
 import numpy as np
 import astropy.units as u
 import astropy.constants as const
+from warnings import warn
 
 from lenstronomy.LensModel.lens_model import LensModel
 from lenstronomy.LensModel.Profiles.arsinh_parall import ParallelArsinh
@@ -105,12 +106,10 @@ def get_lens_model_AS(theta_cAS,thetaEs,samples,kw_add_lenses=None):
     lens_model_AS   = LensModel(lens_model_list=lens_model_list)
     return kwargs_lens_AS,lens_model_AS
 
-def adaptive_tcAS(thetaEs,samples):
-    raise RuntimeError("Pragma: no cover, still to develop")
     
-def get_lens_model_AS_adaptive(thetaEs,samples,kw_add_lenses=None):
+def get_lens_model_AS_adaptive(thetaEs,samples,kw_adaptive,kw_add_lenses=None):
     # adapt theta_cAS to the density of particles
-    theta_cASs = adaptive_tcAS(thetaEs,sample)
+    theta_cASs = adaptive_tcAS(thetaEs,samples,kw_adaptive=kw_adaptive)
     return get_lens_model_AS(thetaEs,theta_cASs,samples,kw_add_lenses=kw_add_lenses)
 
 """
@@ -130,6 +129,57 @@ class Prof2LensModel():
         return kappa
 """
 
+# Claude indicated me this optimised method - less precise but enough so and fast
+from scipy.ndimage import gaussian_filter
+from scipy.interpolate import RegularGridInterpolator
+
+def binned_density(pos,h=0.05,ngrid=1000):
+    lo, hi = pos.min(axis=1), pos.max(axis=1)
+    pad = 4 * h
+    xe = np.linspace(lo[0] - pad, hi[0] + pad, ngrid + 1)
+    ye = np.linspace(lo[1] - pad, hi[1] + pad, ngrid + 1)
+    H, _, _ = np.histogram2d(pos[0], pos[1], bins=[xe, ye])
+    dx, dy = xe[1] - xe[0], ye[1] - ye[0]
+    sm = gaussian_filter(H / (dx * dy), sigma=(h / dx, h / dy), mode="constant")
+    xc, yc = 0.5 * (xe[1:] + xe[:-1]), 0.5 * (ye[1:] + ye[:-1])
+    interp = RegularGridInterpolator((xc, yc), sm, bounds_error=False, fill_value=None)
+    #return interp(pos.T) - 1.0 / (2 * np.pi * h**2)
+    # we ignore the subtraction of the term for the single particle in order not to have 0
+    # density in low-density regions
+    return interp(pos.T) 
+    
+def _get_dens(samples):
+    """
+    input: samples array (2,N) of particles
+    output: number density at the position of each particle 
+    """
+    samples = np.array(samples) # this scrubs away the dimensions
+    dens = binned_density(samples)
+    # we cap a minimum density
+    if dens.min()<=0:
+        dens[dens<=0] = 1e-12 
+    return dens
+    
+def adaptive_tcAS(thetaEs,samples,kw_adaptive):
+    types = ["SIS","NDENS"]
+    if kw_adaptive["type"]=="SIS":
+        theta_max     = kw_adaptive["theta_max"]
+        smooth_fact   = kw_adaptive["smooth_fact"] #=1
+        theta         = np.hypot(*samples)
+        n_smpl        = len(samples[0])
+        theta_core_AS = smooth_fact*np.sqrt(2*np.pi*theta_max*theta/n_smpl)
+    elif kw_adaptive["type"]=="NDENS":
+        # we consider the number density and smoothing factor 
+        # to adapt the theta_core
+        smooth_fact   = kw_adaptive["smooth_fact"] #=1
+        # the following must be a list of number density which follows from
+        # the samples (ie not a simple density estimation)
+        n_dens_arcsec2 = _get_dens(samples)
+        theta_core_AS  = smooth_fact/np.sqrt(n_dens_arcsec2)
+    else:
+        raise RuntimeError(f"kw_adaptive type needs to be {types}, not {kw_adaptive['type']}")
+    return theta_core_AS
+
 def get_lens_prof_PM(thetaEs,samples):
     kwargs_lens_PM  = _build_kwargs_lens_PM((thetaEs, samples[0],samples[1]))
     lens_prof_PM    = ParallelPointMass()
@@ -143,6 +193,12 @@ def get_lens_prof_AS(theta_cAS,thetaEs,samples):
     kwargs_lens_AS = _build_kwargs_lens_AS((thetaEs,theta_cAS, samples[0],samples[1]))
     lens_prof_AS   = ParallelArsinh()
     return kwargs_lens_AS,lens_prof_AS
+    
+def get_lens_prof_AS_adaptive(thetaEs,samples,kw_adaptive):
+    theta_cASs = adaptive_tcAS(thetaEs=thetaEs,
+                               samples=samples,
+                               kw_adaptive=kw_adaptive)
+    return get_lens_prof_AS(theta_cASs,thetaEs,samples)
     
 #
 # Particle functions
@@ -212,6 +268,11 @@ class PartLens_basis():
         elif type_part=="ARCSINH" or type_part=="AS":
             self.thetaE_prefact = thetaE_AS_prefact
             self.thetaE         = thetaE_AS
+            
+        elif type_part=="ARCSINH_TCADAPT" or type_part=="ASTA":
+            self.thetaE_prefact = thetaE_AS_prefact
+            self.thetaE         = thetaE_AS
+            self.kw_adaptive    = kwargs_lens_part["kw_adaptive"]
         else:
             raise TypeError("This particle model is not known: "+type_part)
 
@@ -261,6 +322,8 @@ class PartLens(PartLens_basis):
             self.get_lens_prof  = get_lens_prof_PM
         elif type_part=="ARCSINH" or type_part=="AS":
             self.get_lens_prof  = get_lens_prof_AS
+        elif type_part=="ARCSINH_TCADAPT" or type_part=="ASTA":
+            self.get_lens_prof  = get_lens_prof_AS_adaptive
         else:
             raise TypeError("This particle model is not known: "+type_part)
 
@@ -274,6 +337,9 @@ class PartLens(PartLens_basis):
         kw_lns_mod = {}
         if self.name =="ARSINH"  or self.name =="AS":
             kw_lns_mod = {"theta_cAS":self.kwargs_lens["theta_cAS"]}
+        elif self.name=="ARCSINH_TCADAPT" or self.name=="ASTA":
+            kw_lns_mod = {"kw_adaptive":self.kw_adaptive}
+            
         kwargs_lens_PART,lens_profile_PART = self.get_lens_prof(thetaEs=thetaEs,
                                                                samples=samples,
                                                                **kw_lns_mod)
@@ -292,9 +358,11 @@ class PartLensExpanded(PartLens_basis):
     """
     Add the possibility to consider ulterior lens profiles
     """
-    def __init__(self,kwargs_lens_part,kw_add_lenses=None):
+    def __init__(self,kwargs_lens_part,kw_add_lenses=None,kw_add_part=None):
+        raise RuntimeError("Do not use this")
         super().__init__(kwargs_lens_part)
         self.kw_add_lenses = kw_add_lenses
+        self.kw_add_part   = kw_add_part #additional kwargs for particle
         type_part = kwargs_lens_part["type"]
         if type_part=="PM":
             self.get_lens_model  = get_lens_model_PM
@@ -313,6 +381,9 @@ class PartLensExpanded(PartLens_basis):
         kw_lns_mod = {}
         if self.name =="ARSINH"  or self.name =="AS":
             kw_lns_mod = {"theta_cAS":self.kwargs_lens["theta_cAS"]}
+        elif self.name =="ARCSINH_TCADAPT"  or self.name =="ASTA":
+            kw_lns_mod = {"kw_adaptive":self.kw_add_part}
+            
         kwargs_lens_PART,lens_model_PART = self.get_lens_model(thetaEs=thetaEs,
                                                                samples=samples,
                                                                kw_add_lenses=self.kw_add_lenses,
