@@ -6,6 +6,10 @@ Revolves around the GalLens class, plus several helper functions
      -> no additional lens profiles possible (at this level)
      -> still compute lensing effects given z_lens and z_source, but those will be corrected for in the Lenstronomy profile
 
+-> "Padding" IDEA:  compute lensing maps (alpha,kappa,shear,potential,hessian) in a larger cutout (e.g. 10% larger) than the one later used to create the lensed images.
+    -> Issue: change radec in order to do that properly
+    -> disentagle radec of maps with radec of image
+    -> note: keep deltapix constant between the 2 maps, but change the number of pixels
 """
 import os,gc
 import warnings
@@ -23,7 +27,7 @@ from lenstronomy.Util.util import array2image,make_grid
 
 # My libs
 from python_tools.get_res import load_whatever
-from python_tools.tools import mkdir,to_dimless,ensure_unit
+from python_tools.tools import mkdir,to_dimless
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get all simulated particle galaxies
@@ -49,6 +53,18 @@ from python_tools.memory_leak_tools import log_memory,log_top_allocs
 # WOI cross-machine lock
 from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
 
+
+def same_grid(radec_a, radec_b):
+    """True if the two flat (ra, dec) grids coincide (shape-safe, float-tolerant)."""
+    a, b = np.asarray(radec_a, dtype=float), np.asarray(radec_b, dtype=float)
+    if a.shape != b.shape:
+        return False
+    if a.shape[1] < 2:
+        return np.array_equal(a, b)
+    step = abs(a[0, 1] - a[0, 0]) or 1.0
+    return bool(np.allclose(a, b, rtol=0, atol=1e-8 * max(step, 1e-300)))
+
+
 class GalLens(BasicLensPart): 
     _large_attributes_setup  = ["kwargs_lens","lens_prof","Gal","PartLens","cosmo"]
     _large_attributes_unpack = ["Gal","PartLens","cosmo"]
@@ -58,9 +74,10 @@ class GalLens(BasicLensPart):
                  projection_index, # projection index of the galaxy
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
-                 pixel_num = conf.pixel_num, # number of pixels 
+                 pixel_num = conf.pixel_num, # number of pixels (of the image grid)
                  min_thetaE = conf.min_thetaE, # minimum theta E observable
                  scale_tE = conf.scale_tE,     # rescaling of theta E to get radius (ie size of image cutout) = tE*scale_tE 
+                 padding = conf.padding, # scale the grid where the lensing computation is done
                  ignore_OoBErr=False,   # ignore Out of Bound errors in lenstronomy lens profile
                  reload=True # reload previous instance
                  
@@ -72,6 +89,7 @@ class GalLens(BasicLensPart):
                          kw_prior_z_source=kw_prior_z_source,
                          min_thetaE=min_thetaE,
                          scale_tE = scale_tE,
+                         padding = padding,
                          reload=reload)
         self.ignore_OoBErr = ignore_OoBErr
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
@@ -82,24 +100,18 @@ class GalLens(BasicLensPart):
     
     def _compute_identity(self):
         """Compute identity from arguments available at instantiation."""
-        #MONKEY_PATCH
-        if not hasattr(self,"scale_tE"):
-            print("MONKEY_PATCH: Recovering scale_tE from radius and thetaE") 
-            self.scale_tE = (self.radius/self.thetaE).value
-        if not hasattr(self,"Gal"):
-            print("MONKEY_PATCH: unpacking to get Gal id") 
-            self.unpack(verbose=False)
         _id = (
             self.Gal._identity(),
             self.PartLens._identity(),
             self.pixel_num,
             self.z_source_max,
             self.kwlens_part,
-            self.scale_tE
+            self.scale_tE,
+            self.padding
             )
         if hasattr(self,"_id_cached"):
             if _id!=self._id_cached:
-                raise RuntimeError("This should be impossible")
+                raise RuntimeError("Pre- and re-computed identities do not match")
         self._id_cached = _id
         
     def _identity(self):
@@ -107,9 +119,6 @@ class GalLens(BasicLensPart):
 
         The identity is used for hashing, equality, and cache keys.
         """
-        if not hasattr(self,"_id_cached"):
-            print("MONKEY_PATCH: Recomputing id")
-            self._compute_identity()
         return self._id_cached
 
     ########################
@@ -164,8 +173,14 @@ class GalLens(BasicLensPart):
         self.PartLens.setup(self) # only run now as it needs z_source 
         # Define the radius based on ~ theta_E
         self.radius = self.thetaE*self.scale_tE
+        #  Padded radius (only as a test)
+        radius_padd  = self.radius*(1+self.padding)
+        _radius_padd = (self.pixel_num_padd*self.deltaPix)/2.
+        np.testing.assert_almost_equal(to_dimless(radius_padd),
+                                       to_dimless(_radius_padd),decimal=2)
         if verbose:
             print("Image radius:",np.round(self.radius,3))
+            print("Lens computation (padded) radius:",np.round(radius_padd,3))
         # setup lenses 
         self.setup_lenses()
         # compute all lensing maps 
@@ -200,15 +215,14 @@ class GalLens(BasicLensPart):
             if self.ignore_OoBErr:
                 self.lens_prof.ignore_OoBErr = self.ignore_OoBErr
             print("... Lensing params set up (GalLens)")
-        
+
     def _psi_map(self,_radec=None):
         self.setup()
         if _radec is None:
             _radec = self._radec #arcsecs  
-        if np.all(np.array(_radec)==np.array(self._radec)):
-            if "psi_map" in self.__dict__:
-                return self.__dict__["psi_map"]
-                
+        if same_grid(_radec,self._radec):
+            if "psi_map_padd" in self.__dict__:
+                return self.psi_map
         print("Computing particles lensing potential...")
         _ra,_dec = _radec
         self.setup_lenses()
@@ -220,13 +234,9 @@ class GalLens(BasicLensPart):
         self.setup()
         if _radec is None:
             _radec = self._radec
-
-        if np.all(np.array(_radec) == np.array(self._radec)):
-            # the following leads to recursion error:
-            #if hasattr(self,"alpha_map"):
-            #return self.alpha_map
-            if "alpha_map" in self.__dict__:
-                return self.__dict__["alpha_map"]
+        if same_grid(_radec,self._radec):
+            if "alpha_map_padd" in self.__dict__:
+                return self.alpha_map
         print("Computing particles lensing deflection...")
         _ra,_dec = _radec
         self.setup_lenses()
@@ -242,11 +252,10 @@ class GalLens(BasicLensPart):
             kw_extents = self.kw_extents
         else:
             kw_extents = get_extents(arcXkpc=self.arcXkpc,_radec=_radec)
-
-        if np.all(np.array(_radec) == np.array(self._radec)):
-            if "kappa_map" in self.__dict__:
-                return self.__dict__["kappa_map"]
-
+        
+        if same_grid(_radec,self._radec):
+            if "kappa_map_padd" in self.__dict__:
+                return self.kappa_map
         print("Computing kappa map from density map...")
         self._unpack_Gal()
         self.Gal.run()
@@ -260,22 +269,21 @@ class GalLens(BasicLensPart):
         of the alpha map
         """
         # Can be now computed also beyond the cutout
-        if _radec is None:
+        if _radec is None or same_grid(_radec,self._radec):
             _radec          = self._radec  
             alpha_x,alpha_y = self.alpha_map
         else:
             alpha_x,alpha_y = self._alpha_map(_radec=_radec)
-
-        if np.all(np.array(_radec) == np.array(self._radec)):
-            if "hessian" in self.__dict__:
-                return self.__dict__["hessian"]
-
+        if same_grid(_radec,self._radec):
+            if "hessian_map_padd" in self.__dict__:
+                return self.hessian_map
         print("Computing hessian as gradient of the deflection map...")
         _ra,_dec = _radec
         RA0,DEC0 = array2image(_ra)[0],array2image(_dec)[:,0]
         # taking the non-dimensional pixel scale for the gradient
-        dalpha_x_dy, dalpha_x_dx = np.gradient(alpha_x, RA0,DEC0)
-        dalpha_y_dy, dalpha_y_dx = np.gradient(alpha_y, RA0,DEC0)
+        dalpha_x_dy, dalpha_x_dx = np.gradient(alpha_x, DEC0, RA0)   # [d/d(axis0=dec), d/d(axis1=ra)]
+        dalpha_y_dy, dalpha_y_dx = np.gradient(alpha_y, DEC0, RA0)
+
         f_xx,f_xy,f_yx,f_yy  = dalpha_x_dx,dalpha_x_dy,dalpha_y_dx,dalpha_y_dy
         return f_xx,f_xy,f_yx,f_yy
 

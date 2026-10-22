@@ -55,8 +55,8 @@ def _init_LensSystem_from_GalLens(obj,galLens,lensFuel,kwargs_lensmodel={}):
     # Setup additional lens parameters
     obj.kwargs_add_lenses   = lensFuel.kwargs_add_lenses
     # Initiate the Sim and Obs.Sim
-    obj.SimTrue             =  lensFuel.SimTrue
-    obj.SimObs              =  lensFuel.SimObs 
+    obj.SimTrue             = lensFuel.SimTrue
+    obj.SimObs              = lensFuel.SimObs 
     obj.savedir             = lensFuel.savedir
     mkdir(obj.savedir)
     return obj
@@ -403,8 +403,8 @@ class LensSystem(BasicGal):
         _ra,_dec = _radec
         RA0,DEC0 = array2image(_ra)[0],array2image(_dec)[:,0]
         # taking the non-dimensional pixel scale for the gradient
-        dalpha_x_dy, dalpha_x_dx = np.gradient(alpha_x, RA0,DEC0)
-        dalpha_y_dy, dalpha_y_dx = np.gradient(alpha_y, RA0,DEC0)
+        dalpha_x_dy, dalpha_x_dx = np.gradient(alpha_x, DEC0, RA0)   # [d/d(axis0=dec), d/d(axis1=ra)]
+        dalpha_y_dy, dalpha_y_dx = np.gradient(alpha_y, DEC0, RA0)
         f_xx,f_xy,f_yx,f_yy  = dalpha_x_dx,dalpha_x_dy,dalpha_y_dx,dalpha_y_dy
         return f_xx,f_xy,f_yx,f_yy
 
@@ -516,7 +516,8 @@ class LensSystem(BasicGal):
                 raise RuntimeError() 
         except:
             ra_source,dec_source = _sample_source_pos(self,_radec=_radec)
-            kw_sampled_source_pos = {"ra_source":ra_source,"dec_source":dec_source}
+            kw_sampled_source_pos = {"ra_source":ra_source,"dec_source":dec_source,
+                                     "kwargs_add_lenses":self.kwargs_add_lenses}
             with open(res_path,"wb") as f:
                 dill.dump(kw_sampled_source_pos,f)
             if verbose:
