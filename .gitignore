@@ -1,6 +1,7 @@
 .gitignore
 src/nazgul.egg-info/
 src/nazgul/RingBearer/
+src/nazgul/ObsData/__pycache__/
 src/nazgul/Translator/COLIBRE/__pycache__/
 src/nazgul/Translator/EAGLE/__pycache__/
 src/nazgul/Translator/__pycache__/
