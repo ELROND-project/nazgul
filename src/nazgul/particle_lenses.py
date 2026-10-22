@@ -14,10 +14,8 @@ from lenstronomy.LensModel.Profiles.arsinh_parall import ParallelArsinh
 from lenstronomy.LensModel.Profiles.point_mass_parall import ParallelPointMass
 
 from python_tools.tools import short_SciNot,to_dimless
-# default params:
-theta_c_AS     = 5e-3 
-default_kwlens_part_AS = {"type":"AS","theta_cAS":theta_c_AS}
-default_kwlens_part_PM = {"type":"PM"}
+
+from nazgul.configurations import default_kwlens_part_PM,theta_c_AS,default_kwlens_part_AS,default_kw_adaptive,default_kwlens_part_ASTA 
 #
 # cosmo from https://academic.oup.com/mnras/article/474/3/3391/4644836, Agnello 2017
 # point mass theta_E (from eq.4.7 of Meneghetti's lecture note - and by memory)
@@ -171,7 +169,7 @@ def adaptive_tcAS(thetaEs,samples,kw_adaptive):
     elif kw_adaptive["type"]=="NDENS":
         # we consider the number density and smoothing factor 
         # to adapt the theta_core
-        smooth_fact   = kw_adaptive["smooth_fact"] #=1
+        smooth_fact    = kw_adaptive["smooth_fact"] #=1
         # the following must be a list of number density which follows from
         # the samples (ie not a simple density estimation)
         n_dens_arcsec2 = _get_dens(samples)

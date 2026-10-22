@@ -2,8 +2,8 @@
 Add LOS effects
 """ 
 import pandas as pd 
+from nazgul.configurations import kw_los_path
 
-kw_los_path = "/cosma/home/do019/dc-quei1/analosis/analosis/results/datasets/golden_sample_input_kwargs.csv"
 def get_kw_los(kw_los_path=kw_los_path,index=0,wrap_around=True):
     kw   = pd.read_csv(kw_los_path)
     los_cols = ['kappa_os', 'gamma1_os', 'gamma2_os', 'omega_os',
