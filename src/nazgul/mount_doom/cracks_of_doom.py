@@ -573,16 +573,16 @@ class BasicLensPart(BasicGal):
  
     @property
     def alpha_map(self):
-        return _crop_padd(self.alpha_map_padd)
+        return self._crop_padd(self.alpha_map_padd)
     @property
     def kappa_map(self):
-        return _crop_padd(self.kappa_map_padd)
+        return self._crop_padd(self.kappa_map_padd)
     @property
     def psi_map(self):
-        return _crop_padd(self.psi_map_padd)
+        return self._crop_padd(self.psi_map_padd)
     @property
     def hessian_map(self):
-        return _crop_padd(self.hessian_map_padd)
+        return self._crop_padd(self.hessian_map_padd)
 
 
     def sample_z_source(self,z_source_min,z_source_max):

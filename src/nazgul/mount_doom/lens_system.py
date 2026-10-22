@@ -35,8 +35,10 @@ from nazgul.mount_doom.cracks_of_doom import store_lens,_resolve_gal_path,LoadLe
 
 # Default values
 # particle lens class and params.
+from nazgul.pathfinder import tmp_dir
 from nazgul.configurations import pixel_num,min_thetaE
 from nazgul.mount_doom.cracks_of_doom import source_model_list,get_kwargs_sourceSim
+
 
 verbose = True
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
@@ -408,14 +410,14 @@ class LensSystem(BasicGal):
         f_xx,f_xy,f_yx,f_yy  = dalpha_x_dx,dalpha_x_dy,dalpha_y_dx,dalpha_y_dy
         return f_xx,f_xy,f_yx,f_yy
 
-    def hessian(self,_radec=None):
+    def hessian_map(self,_radec=None):
         hessian = self._cached_by_radec("hessian",self._hessian,_radec=_radec)
         return hessian
         
     def _get_kw_shear(self,_radec=None):
         """From the hessian matrix compute the shear components
         """
-        f_xx,f_xy,f_yx,f_yy = self.hessian(_radec=_radec)
+        f_xx,f_xy,f_yx,f_yy = self.hessian_map(_radec=_radec)
         # derived shear1,shear2 and shear
         shear1 = 1./2 * (f_xx - f_yy)
         shear2 = f_xy
@@ -468,7 +470,7 @@ class LensSystem(BasicGal):
                                     shear,
                                     radec=_radec,
                                     min_points = 10,
-                                    kw_extents=self.gallens.kw_extents)
+                                    kw_extents = self.gallens.kw_extents)
         
         return kw_crit
     ########################
@@ -490,7 +492,7 @@ class LensSystem(BasicGal):
                 raise RuntimeError("Center of kwargs_source still 0")
             return self.kwargs_source
             
-        self.kwargs_source = deepcopy(self.lensFuel.kwargs_source_init)
+        kwargs_source = deepcopy(self.lensFuel.kwargs_source_init)
         if verbose:
             print("Sampling source position within tangential caustic")
         
@@ -523,8 +525,9 @@ class LensSystem(BasicGal):
             if verbose:
                 print(f"Stored computed source position {res_path}")
             
-        self.kwargs_source["center_x"] = ra_source
-        self.kwargs_source["center_y"] = dec_source
+        kwargs_source["center_x"] = ra_source
+        kwargs_source["center_y"] = dec_source
+        self.kwargs_source = kwargs_source
         # Note: still need to convert mag in amp (Sim dependent)
         return 0
     
@@ -662,7 +665,8 @@ def compute_kw_critical_curve_caustics(alpha_x,
     # coords
     RA,DEC      = cod.get_RADEC(radec)
     ra0,dec0    = RA[0],DEC.T[0]
-
+    print("DEBUG pixel_num",pixel_num,"RA",RA,"DEC",DEC,"ra0",ra0,"dec0",dec0)
+    
     eigen_rad_orig = 1 - kappa + shear
     eigen_tan_orig = 1 - kappa - shear
 
@@ -681,13 +685,13 @@ def compute_kw_critical_curve_caustics(alpha_x,
     
     if len(iery)<min_points:            
         ####DEBUG####
-        nm = "tmp/eigen_rad.dll"
+        nm = tmp_dir/"eigen_rad.dll"
         with open(nm,"wb") as f:
             dill.dump([eigen_rad_orig,eigen_rad,is_rad_smooth],
                       f)
         print(f"Check {nm}")
         ###############
-        dbg_plot = "tmp/eigen_rad.png"
+        dbg_plot = tmp_dir/"eigen_rad.png"
         fig,axis = plt.subplots(1,2)
         if kw_extents:
             ext = kw_extents["extent_arcsec"]
@@ -716,7 +720,7 @@ def compute_kw_critical_curve_caustics(alpha_x,
         raise RuntimeError(f"Radial critical curve not found.\nCheck {dbg_plot}")
 
     if len(iety)<min_points:
-        dbg_plot = "tmp/eigen_tan.png"
+        dbg_plot = tmp_dir/"eigen_tan.png"
         if kw_extents:
             ext = kw_extents["extent_arcsec"]
         else:
@@ -898,7 +902,7 @@ def _sample_source_pos(lens,_radec=None):
         plt.scatter(ra_cr,dec_cr,marker=".",label="radial",color="b")
         plt.scatter(ra_ct,dec_ct,marker=".",label="tang.",color="r")
         plt.legend()
-        plt.savefig("tmp/radec_ct_cr_debug.png")
+        plt.savefig(tmp_dir/"radec_ct_cr_debug.png")
         plt.close()
         raise RuntimeError("Failed to sample a source position")
     return ra_source,dec_source

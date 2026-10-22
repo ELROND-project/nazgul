@@ -187,7 +187,7 @@ class GalLens(BasicLensPart):
         # (most computationally intense functions):
         self.alpha_map
         self.kappa_map
-        self.hessian
+        self.hessian_map
         self.psi_map
         # Store the results
         self.store()
@@ -273,7 +273,10 @@ class GalLens(BasicLensPart):
             _radec          = self._radec  
             alpha_x,alpha_y = self.alpha_map
         else:
-            alpha_x,alpha_y = self._alpha_map(_radec=_radec)
+            if same_grid(_radec,self._radec_padd):
+                alpha_x,alpha_y = self.alpha_map_padd
+            else:
+                alpha_x,alpha_y = self._alpha_map(_radec=_radec)
         if same_grid(_radec,self._radec):
             if "hessian_map_padd" in self.__dict__:
                 return self.hessian_map
