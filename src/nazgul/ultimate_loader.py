@@ -209,7 +209,7 @@ def ultimate_lenssys_loader(name,
                             kw_sim=std_kw_sim,
                             kwargs_lenssystem={},
                             verbose=False):
-    galLens = ultimate_gallens_loader(name,snap=snap,kw_sim=kw_sim,verbose=verbose)
+    galLens = ultimate_gallens_loader(name,snap=snap,prj=prj,kw_sim=kw_sim,verbose=verbose)
     lensSys = LensSystem.from_GalLens(lensFuel = lensFuel,galLens=galLens,**kwargs_lenssystem)
     lensSys.unpack(verbose=verbose)
     lensSys.setup(verbose=verbose)

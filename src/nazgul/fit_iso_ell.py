@@ -1,5 +1,3 @@
-# for some reason it was not able to fit anymore- 
-# corrected for it by pre-fitting, 
 import dill
 import warnings
 import numpy as np
