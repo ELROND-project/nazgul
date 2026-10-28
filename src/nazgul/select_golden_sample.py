@@ -14,6 +14,7 @@ from python_tools.get_res import load_whatever
 from python_tools.tools import silencer,to_uid_base64
 
 from nazgul.Translator import std_kw_sim
+from nazgul.fit_iso_ell import fit_iso
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.combined_modelling_results import get_res_dir,get_emcee,get_modelling_prms,get_partial_chain,_convert_shear_params,name_models #,get_lensfuel
 
@@ -59,16 +60,12 @@ def get_isofit(gallens,type="psi"):
         isofit = load_whatever(isofile[0])["isofit"]
     elif len(isofile)==0:
         # if failed, recompute it
-        isofit = recompute_isofit(lens,type=type)
+        print(f"Failed finding prev. file {nm_isofile} - recomputing")
+        #isofit = recompute_isofit(gallens,type=type)
+        kw_isofit = fit_iso(Lens=gallens,type=type)
+        isofit    = kw_isofit["isofit"]
     return isofit
     
-def recompute_isofit(gallens,type="psi"):
-    raise RuntimeError("to implement")
-    type = _verify_type(type=type)
-    nm_isopsi_file  = get_isofile_name(gallens,type=type)
-    ###
-    return isofit_psi
-
 def get_chi2_isofit(isofit):
     # note: we do not have sigma, so this is not really a chi2
     mod = copy(isofit["model"])
