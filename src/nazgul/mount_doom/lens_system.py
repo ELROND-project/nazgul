@@ -464,13 +464,15 @@ class LensSystem(BasicGal):
         # coords
         if _radec is None:
             _radec          = self.gallens._radec
+        dir_debug = self.pkl_path.parent
         kw_crit =  compute_kw_critical_curve_caustics(alpha_x,
                                     alpha_y,
                                     kappa,
                                     shear,
                                     radec=_radec,
                                     min_points = 10,
-                                    kw_extents = self.gallens.kw_extents)
+                                    kw_extents = self.gallens.kw_extents,
+                                                     dir_debug=dir_debug)
         
         return kw_crit
     ########################
@@ -645,7 +647,8 @@ def compute_kw_critical_curve_caustics(alpha_x,
                                     shear,
                                     radec,
                                     min_points = 10,
-                                    kw_extents=None):
+                                    kw_extents=None,
+                                    dir_debug = tmp_dir):
     """ Fit the critical curve and map it to the caustic
     alpha_x alpha map x
     alpha_y alpha map y
@@ -665,8 +668,7 @@ def compute_kw_critical_curve_caustics(alpha_x,
     # coords
     RA,DEC      = cod.get_RADEC(radec)
     ra0,dec0    = RA[0],DEC.T[0]
-    print("DEBUG pixel_num",pixel_num,"RA",RA,"DEC",DEC,"ra0",ra0,"dec0",dec0)
-    
+
     eigen_rad_orig = 1 - kappa + shear
     eigen_tan_orig = 1 - kappa - shear
 
@@ -685,13 +687,13 @@ def compute_kw_critical_curve_caustics(alpha_x,
     
     if len(iery)<min_points:            
         ####DEBUG####
-        nm = tmp_dir/"eigen_rad.dll"
+        nm = dir_debug/"eigen_rad.dll"
         with open(nm,"wb") as f:
             dill.dump([eigen_rad_orig,eigen_rad,is_rad_smooth],
                       f)
         print(f"Check {nm}")
         ###############
-        dbg_plot = tmp_dir/"eigen_rad.png"
+        dbg_plot = dir_debug/"eigen_rad.png"
         fig,axis = plt.subplots(1,2)
         if kw_extents:
             ext = kw_extents["extent_arcsec"]
@@ -720,7 +722,7 @@ def compute_kw_critical_curve_caustics(alpha_x,
         raise RuntimeError(f"Radial critical curve not found.\nCheck {dbg_plot}")
 
     if len(iety)<min_points:
-        dbg_plot = tmp_dir/"eigen_tan.png"
+        dbg_plot = dir_debug/"eigen_tan.png"
         if kw_extents:
             ext = kw_extents["extent_arcsec"]
         else:
@@ -897,16 +899,22 @@ def _sample_source_pos(lens,_radec=None):
     if ra_source is None:
         print(x_bounds)
         print(y_bounds)
-        plt.close()
-        #ra_cr,dec_cr = kw_caustics["caustics"]["radial"]
-        plt.scatter(ra_cr,dec_cr,marker=".",label="radial",color="b")
-        plt.scatter(ra_ct,dec_ct,marker=".",label="tang.",color="r")
-        plt.legend()
-        plt.savefig(tmp_dir/"radec_ct_cr_debug.png")
-        plt.close()
+        dir_debug = lens.pkl_path.parent
+        _plot_caustics(kw_caustics,dir_res=dir_debug)
         raise RuntimeError("Failed to sample a source position")
     return ra_source,dec_source
 
+def _plot_caustics(kw_caustics,dir_res=tmp_dir):
+    plt.close()
+    ra_ct,dec_ct = kw_caustics["caustics"]["tangential"]
+    ra_cr,dec_cr = kw_caustics["caustics"]["radial"]
+    #ra_cr,dec_cr = kw_caustics["caustics"]["radial"]
+    plt.scatter(ra_cr,dec_cr,marker=".",label="radial",color="b")
+    plt.scatter(ra_ct,dec_ct,marker=".",label="tang.",color="r")
+    plt.legend()
+    plt.savefig(dir_res/"radec_ct_cr_debug.png")
+    plt.close()
+    
 def interpolate_map(map,coord,coord_out):
     map_flat = image2array(map)
     map_out = griddata(coord,map_flat,coord_out)
