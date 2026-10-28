@@ -357,6 +357,7 @@ def is_gal_to_compute(Gal,reload=True,_list_of_skippable_gals=None,check_if_work
         Gal.run(reload=reload)
 
     return Gal
+from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
 
 def wrapper_forge_all_lenses(reload=True,
                         kw_lenspart={},
@@ -365,6 +366,7 @@ def wrapper_forge_all_lenses(reload=True,
                         consider_all_proj=True,
                         _test=False,
                         _list_of_skippable_gals=None,
+                        check_if_workin_on_it=True,
                         debug=False):
     """Get a lens from all available galaxies"""
     kw_lenspart = get_kw_lenspart(reload,kw_lenspart)
@@ -389,6 +391,13 @@ def wrapper_forge_all_lenses(reload=True,
                 try:
                     log_memory(f"before GalLens run {Gal_name}")
                     mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
+                    workin_dir = mod_LP.pkl_path.parent
+                    if check_if_workin_on_it:
+                        if is_someone_workin_on_it(workin_dir):
+                            warnings.warn(f"This gal, {mod_LP.name} is being worked on, skipping - if not, delete the WOI.dll file:\n{workin_dir}/WOI.dll") 
+                            raise RuntimeError()  
+                    set_workin_on_it(workin_dir,wrk = True)
+
                     mod_LP.run(read_prev=reload)
                     log_memory(f"after GalLens run {Gal_name}")
                     supercrit = True
