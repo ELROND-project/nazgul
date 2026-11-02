@@ -2,9 +2,9 @@
 Simulate an image with SIS and try to model it  (without LOS)
 """
 import sys
+import argparse
 import numpy as np
 from python_tools.tools import mkdir
-from python_tools.get_res import load_whatever
 
 from nazgul.Modelling.pathfinder import model_res_base
 from nazgul.mount_doom.lens_system import LensSystem
@@ -24,8 +24,8 @@ mkdir(res_dir_base)
 description_model = "Try to model a single SIS, and model the lens with SIS, and an elliptical sersic source (without LOS)"
 
 
-from nazgul.Modelling.model_testSIS import _get_kwargs_params,create_SIS_gallens
-    
+from nazgul.Modelling.model_testSIS import _get_kwargs_params,_create_SIS_gallens,n_smpl,tE_in,default_kwlens_part_ASTA 
+
 def get_kwargs_params(lens):
     return _get_kwargs_params(lens,los_included=False)
     
@@ -35,8 +35,26 @@ kw_model = {"lens_model_list":lens_model_list,
             "get_kwargs_params":get_kwargs_params}
 
 
-import argparse
 
+
+kw_prior_z_source = {"fixed_z_source":z_source,
+                     "z_source_max":5}
+
+def create_SIS_gallens_fixed_z_source(n_smpl=n_smpl,
+                       kwlens_part_AS=default_kwlens_part_ASTA,
+                       tE_in=tE_in,
+                       z_lens=z_lens,
+                       kw_prior_z_source=kw_prior_z_source,
+                       reload=True):
+    
+    return  _create_SIS_gallens(n_smpl=n_smpl,
+                       kwlens_part_AS=kwlens_part_AS,
+                       tE_in=tE_in,
+                       z_lens=z_lens,
+                       kw_prior_z_source=kw_prior_z_source,
+                       reload=reload)
+    
+    
 if __name__=="__main__":
     from nazgul.Modelling.lib_models import setup_lens,get_res_dir,model_lens,n_it_std,n_burn_std,n_run_std,n_part_std
 
@@ -57,7 +75,7 @@ if __name__=="__main__":
     res_dir = get_res_dir(res_dir_base,simsuite,sim,
                           subsim=subsim,run_type=run_type)
 
-    lens_sys = load_whatever("/cosma/home/do019/dc-quei1/nazgul/src/nazgul/RingBearer/ANL_TEST/SIS/snap_0/TEST_GAL_SIS_tE1.5_nS1.00e+06/Sub/Sub_Lens_TEST_GAL_SIS_tE1.5_nS1.00e+06_Prj0_Qvz7NA.pkl")
+    lens_sys = create_SIS_gallens_fixed_z_source()
     lens_sys.unpack()
     lens2model = LensSystem.from_GalLens(lens_sys,lensFuel=lensfuel)
     # the SIS has no radial CC, so the sampling of the source pos fails
