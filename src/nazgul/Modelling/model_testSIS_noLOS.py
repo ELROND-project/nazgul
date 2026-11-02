@@ -34,9 +34,6 @@ kw_model = {"lens_model_list":lens_model_list,
             "source_model_list":source_model_list,
             "get_kwargs_params":get_kwargs_params}
 
-
-
-
 kw_prior_z_source = {"fixed_z_source":z_source,
                      "z_source_max":5}
 
