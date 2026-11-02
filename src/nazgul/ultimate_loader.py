@@ -179,7 +179,7 @@ def get_lens_resdir_path(model,snaps,kw_sim=std_kw_sim,check_if_workin_on_it=Tru
 #snaps = ["0110"]
 #get_lens_resdir_path(model,snaps)[0]
     
-def _get_gallens_path(lens_name,model,snaps,kw_sim=std_kw_sim,check_if_workin_on_it=True):
+def _get_gallens_model_res_dir(lens_name,model,snaps,kw_sim=std_kw_sim,check_if_workin_on_it=True):
     if len(snaps)==1:
         snap = snaps[0]
         gallens = ultimate_gallens_loader(lens_name,snap=snap,kw_sim=kw_sim,verbose=False) 

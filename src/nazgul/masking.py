@@ -1,13 +1,12 @@
 import warnings
 import numpy as np
+from scipy import ndimage
 from astropy.stats import sigma_clip
 from matplotlib.colors import ListedColormap
-from scipy.ndimage import zoom,gaussian_filter
 
 from python_tools.tools import to_dimless
 from python_tools.image_manipulation import mask_in, mask_out
-
-
+    
 def masking_thetaE(lens,image=None):
     raise RuntimeError("Deprecated")
     if image is None:
@@ -42,7 +41,7 @@ def mask_SEAGLE_old(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25
     if image is None:
         image = lens.image_true
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
-    filt_img = gaussian_filter(image,sigma=fwhm_pix)
+    filt_img = ndimage.gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
     sgc = sigma_clip(image,sigma=sig_clip)        
     msk_sky = np.invert(sgc.mask)
@@ -80,7 +79,7 @@ def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked
     if image is None:
         image = lens.image_true
     fwhm_pix = image.shape[0]*fwhm_pix_perc/100
-    filt_img = gaussian_filter(image,sigma=fwhm_pix)
+    filt_img = ndimage.gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
     sgc = sigma_clip(image,sigma=sig_clip)        
     msk_sky = np.invert(sgc.mask)
@@ -147,7 +146,7 @@ def resize_mask(mask,target_image):
             raise RuntimeError("The image and masks needs to be square")
             
     scaling = target_image.shape[0]/mask.shape[0]
-    mask_rescaled = zoom(mask,scaling,order=3)
+    mask_rescaled = ndimage.zoom(mask,scaling,order=3)
     mask_rescaled[np.where(mask_rescaled>=0.5)] = 1
     mask_rescaled[np.where(mask_rescaled<0.5)]  = 0
     return mask_rescaled
@@ -166,7 +165,7 @@ def mask_bright_center(lens,image=None,rad_pix=10):
     # to define the mask (ie no noise)
     fwhm = 0.7
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
-    filt_masked = gaussian_filter(masked_part,sigma=fwhm_pix)
+    filt_masked = ndimage.gaussian_filter(masked_part,sigma=fwhm_pix)
     ymax,xmax   = np.where(filt_masked==np.max(filt_masked))
     # consider the first one
     xmax = xmax[0]
@@ -190,3 +189,13 @@ def overplot_mask(ax,mask,alpha=.3):
     mask = np.array(mask,dtype=int)
     ax.imshow(mask,cmap=white_mask_cmap(alpha),vmin=0, vmax=1)
     return ax
+
+# thanks to Claude
+def grow_mask(mask,n=1):
+    "Expand mask by n neighbooring pixels"
+    # invert mask
+    mask = invert_mask(mask)
+    grown_mask = ndimage.binary_dilation(mask, structure=ndimage.generate_binary_structure(2, 2), iterations=n)  # 8-connected -> square
+    # re - invert mask
+    grown_mask = invert_mask(grown_mask)
+    return grown_mask

@@ -27,7 +27,7 @@ from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever
 from python_tools.tools_WOI import is_someone_workin_on_it
 
-from nazgul.lens_part_LOS import get_kw_los
+from nazgul.pathfinder import path_nazgul
 from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.Translator import std_sim,std_simsuite,std_subsim,get_simsuite_from_code,std_kw_sim
 from nazgul.Translator.translator import standardise_snap
@@ -218,10 +218,20 @@ def get_model_title(model):
         ttl = r"LOS not simulated, but modelled - Drifting cored elliptical power law"
     elif model=="SNS_DCE_noLOS":
         ttl = r"External Shear not simulated, but modelled - Drifting cored elliptical power law"
+    elif model=="DCE_noCntMsk":
+        ttl = r"LOS shear simulated and modelled - Drifting cored elliptical power law (no central mask)"
+    elif model=="EPL":
+        ttl = r"LOS shear simulated and modelled - EPL"
+    elif model=="EPL_m4":
+        ttl = r"LOS shear simulated and modelled - EPL + m4 multipole"
+    elif model=="EPL_m134":
+        ttl = r"LOS shear simulated and modelled - EPL + m1,m3,m4 multipoles"
+    elif model=="GEP":
+        ttl = r"LOS shear simulated and modelled - Generalised Elliptical Potential"
+    elif model=="GEP_ellexp":
+        ttl = r"LOS shear simulated and modelled - Generalised Elliptical Potential with exponential elliptical profile"
     else:
         raise RuntimeError("Define title of model")
-    if "multipole" in model:
-        ttl +=" with multipoles"
     
     return ttl
 
@@ -246,10 +256,16 @@ def get_modelling_prms(model_name,kw_sim=std_kw_sim):
     emcee  = load_whatever(emcee_rnd_path)
     params = emcee[-2]
     return params
-    
 
-def plot_los_outVsin(lenses,_rnd=3):
-    model = "allLOS"
+# not used anymore:
+"""
+def get_kw_input(lens_sys):
+    nm_input = f"{lens_sys.model_res_dir}/kw_input.dll"            
+    kw_input = load_whatever(nm_input)
+    return kw_input
+"""
+
+def plot_los_outVsin(lenses_sys,_rnd=3):
     fig,axes = plt.subplots(2,1,figsize=(12,16))
     #gamma_los_name =  r"$\gamma_{\rm{LOS}}$"
     str_glos   = r"$\gamma^{\rm{LOS}}$"
@@ -278,12 +294,10 @@ def plot_los_outVsin(lenses,_rnd=3):
     phi_lens_std = []
     q_lens_med   = []
 
-    for i,lens in enumerate(lenses):
-        lens_name = lens.name.replace("Sub_","")
-        nm_input = f"{lens.model_res_dir}/kw_input.dll"            
-        kw_input = load_whatever(nm_input)
-
-        chnl_path   = get_emcee_file(lens)
+    for i,lens_sys in enumerate(lenses_sys):
+        lens_sys.unpack()
+        lens_name = lens_sys.name.replace("LS_Lens_","")
+        chnl_path   = get_emcee_file(lens_sys.gallens)
         emcee_chain = load_whatever(chnl_path)
         sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
         mc_sample  = np.array(mc_sample)
@@ -311,7 +325,7 @@ def plot_los_outVsin(lenses,_rnd=3):
         gamma_los_meas = np.median(gamma_los)
         gamma_los_std  = np.std(gamma_los)
         
-        kw_add_lns = kw_input['kw_add_lenses']
+        kw_add_lns = lens_sys.lensFuel.kwargs_add_lenses
         kw_los     = kw_add_lns["kwargs_lens"][kw_add_lns["lens_model_list"].index("LOS")]
         gamma_los1_true = kw_los["gamma1_od"] + kw_los["gamma1_os"] - kw_los["gamma1_ds"]
         gamma_los2_true = kw_los["gamma2_od"] + kw_los["gamma2_os"] - kw_los["gamma2_ds"]
@@ -620,6 +634,7 @@ def _prettify_prm(prm):
         pretty = main_latex
 
     return r"$" + pretty + r"$"
+    
 def load_kw_data(model,lens):
     full_chain = get_full_chain(lens,model)
     
@@ -630,9 +645,9 @@ def load_kw_data(model,lens):
                    modelPlot=modelPlot)
     return kw_data
 
-def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3,overlay_ellipticity=False,no_thetaE=False,_red_chi2=None):
+def plot_result_line(model,lens_sys,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3,overlay_ellipticity=False,no_thetaE=False,_red_chi2=None):
     fig       = axes.flatten()[0].get_figure()
-    lens_name = lens.name.replace("Sub_","")
+    lens_name = lens_sys.name.replace("LS_Lens_","")
     if kw_data is None:    
         kw_data = load_kw_data(model,lens)
     modelPlot  = kw_data["modelPlot"]
@@ -708,8 +723,8 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
                                        shade_gradient = 0.4, linewidth=3.0), px="theta_E_lens0",)
         lbl_tE_meas = r"$\theta_{\rm{E}}=$"+str(np.round(np.median(thetaE),_rnd))+"+-"+str(np.round(np.std(thetaE),_rnd))+'"'
         ax.axvline(np.median(thetaE),ls="-.",color="k",label=lbl_tE_meas)
-        lbl_tE_true = r"$\theta_{\rm{E, True}}=$"+short_SciNot(lens.thetaE.value)+'"'
-        ax.axvline(lens.thetaE.value,ls="-",color="r",label=lbl_tE_true)
+        lbl_tE_true = r"$\theta_{\rm{E, True}}=$"+short_SciNot(lens_sys.gallens.thetaE.value)+'"'
+        ax.axvline(lens_sys.gallens.thetaE.value,ls="-",color="r",label=lbl_tE_true)
         ax.legend(loc="upper right")
     
     # Posterior gamma_ext
@@ -775,16 +790,13 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
     else:
         ax.set_ylabel(clmns[1])
 
-    if model=="allLOS":
-        kw_add_lns = kw_input['kw_add_lenses']
+    if has_sim_gammalos(model):
+        kw_add_lns = lens_sys.lensFuel.kwargs_add_lenses
         kw_los     = kw_add_lns["kwargs_lens"][kw_add_lns["lens_model_list"].index("LOS")]
         gamma_los1_true = kw_los["gamma1_od"] + kw_los["gamma1_os"] - kw_los["gamma1_ds"]
         gamma_los2_true = kw_los["gamma2_od"] + kw_los["gamma2_os"] - kw_los["gamma2_ds"]
-    elif "fitLOS" in model or "noLOS" in model or "simNoShear" in model or "SNS" in model:
-        #TODO : better implementation of this
-        gamma_los1_true,gamma_los2_true = 0,0
     else:
-        raise RuntimeError(f"{model} not defined for gamma_los_truth")
+        gamma_los1_true,gamma_los2_true = 0,0
     ax.axvline(gamma_los1_true,ls="-",label="Truth "+clmns[0]+f"= {np.round(gamma_los1_true,_rnd)}",c="r")
     ax.axhline(gamma_los2_true,ls="-",label="Truth "+clmns[1]+f"= {np.round(gamma_los2_true,_rnd)}",c="r")
         
@@ -799,8 +811,30 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
         del thetaE
     gc.collect()
     return axes
+
+def has_sim_gammalos(model):
+    """check if model simulates gamma los"""
+    lnsf = get_lensfuel(model)
+    # very ugly hack
+    class EmptyGallens:
+        def __init__(self):
+            pass
+        def _identity(self):
+            return 0
+    emptygal = EmptyGallens()
+    kw_add_lenses = lnsf.get_kw_add_lenses(emptygal)
+    if "LOS" in kw_add_lenses["lens_model_list"]:
+        return True
+    else:
+        return False
+        
     
 warnings.filterwarnings("ignore")
+
+# find name of allowed models:
+mod_pth = path_nazgul/"Modelling"
+prog_name_models = [str(mod.name).replace("model_","").replace(".py","") for mod in mod_pth.glob("model_*py")]
+
 
 name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS","GEP","GEP_ellexp"]
 
@@ -887,6 +921,9 @@ if __name__=="__main__":
     parser.add_argument('-nl','--n_lenses', dest="n_lenses",
                         default=None, type=int,
                         help="Number of lenses to plot - default all")
+    parser.add_argument('-nowoi','--ignore_woi', dest="check_if_woi",
+                        default=True, action="store_false",
+                        help="If set, ignore 'WOI' file")
 
     args     = parser.parse_args()
     model    = args.model
@@ -895,6 +932,7 @@ if __name__=="__main__":
     subsim   = args.subsim
     simsuite = args.simsuite
     n_lenses = args.n_lenses
+    check_if_woi = args.check_if_woi
     overlay_ellipticity = args.overlay_ellipticity
     lines_per_page      = args.lines_per_page
 
@@ -906,7 +944,7 @@ if __name__=="__main__":
     res_dir = get_res_dir(model,kw_sim=kw_sim)
     nm_combined = f"{res_dir}/combined_result.pdf"
 
-    lens_resdir_paths = get_all_lens_model_paths(res_dir,snaps=snaps)  # paths only, no loading
+    lens_resdir_paths = get_all_lens_model_paths(res_dir,snaps=snaps,check_if_workin_on_it=check_if_woi)  # paths only, no loading
     if n_lenses is None:
         n_lenses          = len(lens_resdir_paths)
     columns_ttl = ["Sim Image", "Model", "Norm. Resid.", r"P($\theta_E$|S.I.)"]
@@ -920,7 +958,7 @@ if __name__=="__main__":
     ncols = len(columns_ttl)
 
     # accumulators for plot_los_outVsin, only needed if model=="allLOS"
-    lenses_for_los = []
+    lenses_sys_for_los = []
     tracemalloc.start()
     red_chi2 = []
     with PdfPages(nm_combined) as pdf:
@@ -937,11 +975,12 @@ if __name__=="__main__":
             for i_row, model_res_dir in enumerate(page_slice):
                 log_memory("beggining row loop")
                 # ── load lens ──────────────────────────────────────────────
-                lens = LoadLens(model_res_dir/"link_gallens.pkl")
-                lens.unpack(verbose=verb_lens)
-                lens.model_res_dir = model_res_dir
+                lens_sys = LoadLens(model_res_dir/"link_lenssys.pkl")
+                lens_sys.unpack(verbose=verb_lens)
+                lens_sys.model_res_dir = model_res_dir
+                
                 log_memory("loaded lens")
-                kw_data = load_kw_data(model,lens)
+                kw_data = load_kw_data(model,lens_sys)
                 log_memory("loaded kw_data")
                 # ── single-lens PDF ────────────────────────────────────────
                 nm_single = f"{model_res_dir}/single_result.pdf"
@@ -951,7 +990,7 @@ if __name__=="__main__":
                 log_memory("before plot_result_line 1")
                 reduced_chi2  = get_red_chi2(kw_data["modelPlot"],verbose=False)
                 red_chi2.append(reduced_chi2)
-                plot_result_line(model, lens, axes_s, 0, 1,
+                plot_result_line(model, lens_sys, axes_s, 0, 1,
                                  columns_ttl, _rnd=_rnd,
                                  kw_data =kw_data,
                                  overlay_ellipticity=overlay_ellipticity,
@@ -968,17 +1007,17 @@ if __name__=="__main__":
 
                 # ── row in combined page ───────────────────────────────────
                 log_memory("before plot_result_line 2")
-                plot_result_line(model, lens, axes, i_row, nrows_page,
+                plot_result_line(model, lens_sys, axes, i_row, nrows_page,
                                  columns_ttl, _rnd=_rnd,kw_data=kw_data,
                                  overlay_ellipticity=overlay_ellipticity,
                                 _red_chi2=reduced_chi2)
                 
                 log_memory("after plot_result_line 2")
                 # ── keep lightweight ref for LOS plot if needed ────────────
-                if model == "allLOS":
-                    lenses_for_los.append(lens)
+                if model:
+                    lenses_sys_for_los.append(lens_sys)
                 else:
-                    del lens
+                    del lens_sys
                 del kw_data
                 gc.collect()
                 log_memory("End of row loop - deleted kw_data")
@@ -1004,7 +1043,7 @@ if __name__=="__main__":
     
     # ── LOS comparison plots (allLOS only) ────────────────────────────────
     if model == "allLOS":
-        fig, fig2 = plot_los_outVsin(lenses_for_los, _rnd=_rnd)
+        fig, fig2 = plot_los_outVsin(lenses_sys_for_los, _rnd=_rnd)
 
         nm = f"{res_dir}/comp_glos_12_in_vs_out.pdf"
         fig.savefig(nm)
@@ -1018,7 +1057,7 @@ if __name__=="__main__":
         del fig2
         print(f"Saved {nm}")
 
-        del lenses_for_los
+        del lenses_sys_for_los
         gc.collect()
         
 """

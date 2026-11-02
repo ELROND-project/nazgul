@@ -8,7 +8,7 @@ from chainconsumer.plotting import plot_contour,plot_dist #,plot_truths
 
 from python_tools.tools import mkdir
 from python_tools.get_res import load_whatever 
-from nazgul.ultimate_loader import ultimate_gal_loader,ultimate_gallens_loader,ultimate_lenssys_loader,_get_gallens_path
+from nazgul.ultimate_loader import ultimate_gal_loader,ultimate_gallens_loader,ultimate_lenssys_loader,_get_gallens_model_res_dir
 
 from nazgul.Translator import std_kw_sim
 from nazgul.lib_plot import circle
@@ -67,7 +67,7 @@ class ProfileLens:
         self.lens_system.kw_truths = _standardise_truths(kw_truths)
         #self.lens_system.kw_ugly_truths = _standardise_truths(kw_truths,pretty=False)
         try:
-            model_res_dir = _get_gallens_path(name,model=model,snaps=[snap],kw_sim=self.kw_sim,
+            model_res_dir = _get_gallens_model_res_dir(name,model=model,snaps=[snap],kw_sim=self.kw_sim,
                                               check_if_workin_on_it=check_if_workin_on_it)
         except RuntimeError:
             model_res_dir = None   
