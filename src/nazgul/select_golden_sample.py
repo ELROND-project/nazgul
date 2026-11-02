@@ -15,6 +15,7 @@ from python_tools.tools import silencer,to_uid_base64
 
 from nazgul.Translator import std_kw_sim
 from nazgul.fit_iso_ell import fit_iso
+from nazgul.masking import grow_mask
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.combined_modelling_results import get_res_dir,get_emcee,get_modelling_prms,get_partial_chain,_convert_shear_params,name_models #,get_lensfuel
 
@@ -65,12 +66,24 @@ def get_isofit(gallens,type="psi"):
         kw_isofit = fit_iso(Lens=gallens,type=type)
         isofit    = kw_isofit["isofit"]
     return isofit
-    
-def get_chi2_isofit(isofit):
+
+def get_chi2_isofit(isofit,mask_edges=True,perc_pix_mask=2.5):
     # note: we do not have sigma, so this is not really a chi2
+    # mask_edges = if we want to ignore the masking of the edges
+    # perc_pix_mask = the percentage of masked pixels (def: 2.5 for 200 pix = 5pix)
+    
     mod = copy(isofit["model"])
     mod[mod==0.0] = np.nan
-    chi2 = np.nansum((isofit["map"]- mod)**2) 
+    isofit_map = isofit["map"]
+    if mask_edges:
+        mask_mod = np.ones_like(mod,dtype=bool)
+        mask_mod[np.isnan(mod)] = False
+        n = perc_pix_mask*mod.shape[0]
+        n = int(n)
+        grown_mask = grow_mask(mask_mod,n=n)
+        mod[grown_mask==False]        = np.nan
+        isofit_map[grown_mask==False] = np.nan
+    chi2 = np.nansum(((isofit_map- mod)**2)/isofit_map) 
     return chi2
     
 ## Verify that the D2 fit is a good fit 
@@ -180,17 +193,17 @@ def _get_cropped_isolist_RE(isolist,RE_pix,frac_tE=0.1):
     return isocrop
 
 def get_isolist_cropped(isolist,gallens,frac_tE=0.1):
-    RE_pix = get_RE_pix(gallens)
+    RE_pix          = get_RE_pix(gallens)
     isolist_cropped = _get_cropped_isolist_RE(isolist=isolist,RE_pix=RE_pix,frac_tE=frac_tE)
     return isolist_cropped
     
 def get_chi2_Dfit(isolist,gallens,sigma_r = 2,frac_tE=0.1):
-    # frac_tE: define the isofotes to discard i.e. sma(isophote_cropped) > frac*tE 
     # sigma_r: as an indication of the expected radial error in position of the center
+    # frac_tE: define the isofotes to discard i.e. sma(isophote_cropped) > frac*tE 
     
     isolist_cropped = get_isolist_cropped(isolist,gallens,frac_tE=frac_tE)
 
-    x,y = get_xy_fit_from_isolist(isolist_cropped)
+    x,y   = get_xy_fit_from_isolist(isolist_cropped)
     x_iso = np.array([isolist_cropped.x0 - isolist_cropped.x0[0]])
     y_iso = np.array([isolist_cropped.y0 - isolist_cropped.y0[0]])
     Dr    = np.hypot(x-x_iso,y-y_iso)
