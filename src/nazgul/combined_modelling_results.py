@@ -21,13 +21,14 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from chainconsumer import Chain #, ChainConsumer
 from chainconsumer.plotting import plot_contour,plot_dist #,plot_truths
 
-from lenstronomy.Util.param_util import shear_polar2cartesian,ellipticity2phi_q
+from lenstronomy.Util.param_util import shear_polar2cartesian,shear_cartesian2polar,ellipticity2phi_q
 
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever
 from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.pathfinder import path_nazgul
+from nazgul.lib_stat import tension_multidim
 from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.Translator import std_sim,std_simsuite,std_subsim,get_simsuite_from_code,std_kw_sim
 from nazgul.Translator.translator import standardise_snap
@@ -116,10 +117,6 @@ def _glob_exactly_1(cnd_name,_str_info=""):
         return candidate[0]
 
 
-def get_lens_resdir_path(model,snaps,kw_sim=std_kw_sim):
-    res_dir = get_res_dir(model,kw_sim=kw_sim)
-    lens_resdir_paths = get_all_lens_model_paths(res_dir,snaps=snaps)  
-    return lens_resdir_paths
 
 def get_all_lens_model_paths(res_dir,snaps=[],check_if_workin_on_it=True,kw_sim=std_kw_sim):
     if snaps ==[]:
@@ -140,7 +137,19 @@ def get_all_lens_model_paths(res_dir,snaps=[],check_if_workin_on_it=True,kw_sim=
             pth_modlenses = np.array(pth_modlenses)[flag]
             pth_modlenses = pth_modlenses.tolist()
     return pth_modlenses
+
+
+def get_lens_resdir_path(model,snaps,kw_sim=std_kw_sim,check_if_workin_on_it=True):
+    res_dir = get_res_dir(model,kw_sim=kw_sim)
+    lens_resdir_paths = get_all_lens_model_paths(res_dir,snaps=snaps,
+                                                 kw_sim=kw_sim,check_if_workin_on_it=check_if_workin_on_it)  
+    return lens_resdir_paths
     
+def get_all_lens_model_names(model,snaps,kw_sim=std_kw_sim,check_if_workin_on_it=True):
+    lens_resdir_paths = get_lens_resdir_path(model=model,snaps=snaps,
+                                                 kw_sim=kw_sim,check_if_workin_on_it=check_if_workin_on_it)
+    all_lens_names = [lns_pth.name for lns_pth in lens_resdir_paths]
+    return all_lens_names
 
 def _convert_shear2LOS_prms(param_mcmc,ret_index=False):
     if "gamma1_los_lens1" in param_mcmc and 'gamma2_los_lens1' in param_mcmc and not "gamma_ext_lens1" in param_mcmc and not "shear_ext_lens1" in param_mcmc:
@@ -306,8 +315,8 @@ def plot_los_outVsin(lenses_sys,_rnd=3):
         gamma_los1 = mc_sample.T[i_gamma_los1][0]
         i_gamma_los2 = np.where(param_mcmc=="gamma2_los_lens1")
         gamma_los2 = mc_sample.T[i_gamma_los2][0]
+        phi_los,gamma_los = shear_cartesian2polar(gamma_los1,gamma_los2)
         
-        phi_los,q_los = ellipticity2phi_q(gamma_los1,gamma_los2)
         i_e1_lens = np.where(param_mcmc=="e1_lens0")
         e1_lens   = mc_sample.T[i_e1_lens][0]
         i_e2_lens = np.where(param_mcmc=="e2_lens0")
@@ -321,14 +330,17 @@ def plot_los_outVsin(lenses_sys,_rnd=3):
         phi_lens_std.append(np.std(phi_lens))
         q_lens_med.append(np.median(q_lens))
         
-        gamma_los  = np.sqrt(gamma_los1**2 + gamma_los2**2)
+        #gamma_los  = np.sqrt(gamma_los1**2 + gamma_los2**2)==gamma_los prev. computed
         gamma_los_meas = np.median(gamma_los)
         gamma_los_std  = np.std(gamma_los)
         
         kw_add_lns = lens_sys.lensFuel.kwargs_add_lenses
         kw_los     = kw_add_lns["kwargs_lens"][kw_add_lns["lens_model_list"].index("LOS")]
         gamma_los1_true = kw_los["gamma1_od"] + kw_los["gamma1_os"] - kw_los["gamma1_ds"]
+        np.testing.assert_almost_equal(gamma_los1_true,kw_los["gamma1_los"])
         gamma_los2_true = kw_los["gamma2_od"] + kw_los["gamma2_os"] - kw_los["gamma2_ds"]
+        np.testing.assert_almost_equal(gamma_los2_true,kw_los["gamma2_los"])
+        
         gamma_los_true =  np.sqrt(gamma_los1_true**2 + gamma_los2_true**2)
         
         g_los_out_med.append(gamma_los_meas)
@@ -799,7 +811,9 @@ def plot_result_line(model,lens_sys,axes,i_row,nrows,columns_ttl,kw_data=None,_r
         gamma_los1_true,gamma_los2_true = 0,0
     ax.axvline(gamma_los1_true,ls="-",label="Truth "+clmns[0]+f"= {np.round(gamma_los1_true,_rnd)}",c="r")
     ax.axhline(gamma_los2_true,ls="-",label="Truth "+clmns[1]+f"= {np.round(gamma_los2_true,_rnd)}",c="r")
-        
+    # compute tension of gamma
+    tau_gamma = tension_multidim(g12e12.T,[gamma_los1_true,gamma_los2_true])
+    ax.scatter(gamma_los1_true,gamma_los2_true,alpha=0,label=r'$\tau_{\rm{Mahalanobis}}$='+str(np.round(tau_gamma,2)))
     #ax.legend(loc="lower left",framealpha=1)
     leg = ax.legend(framealpha=1)
     leg.set_zorder(1000)

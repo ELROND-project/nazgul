@@ -192,11 +192,13 @@ if __name__=="__main__":
         n_part = n_part_std
         n_burn = n_burn_std
         n_run  = n_run_std
+        n_smpl_SIS = n_smpl
     elif run_type == 1:
         n_it   = 3
         n_part = 3
         n_burn = 1
         n_run  = 2
+        n_smpl_SIS = int(1e3)
     elif run_type==2:
         n_it   = 100
         n_part = 20
@@ -208,7 +210,7 @@ if __name__=="__main__":
     res_dir = get_res_dir(res_dir_base,simsuite,sim,
                           subsim=subsim,run_type=run_type)
     
-    lens_sys = create_SIS_gallens()
+    lens_sys = create_SIS_gallens(n_smpl=n_smpl_SIS)
     lens_sys.unpack()
     lens2model = LensSystem.from_GalLens(lens_sys,lensFuel=lensfuel)
     # the SIS has no radial CC, so the sampling of the source pos fails
