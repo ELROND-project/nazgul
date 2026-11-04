@@ -16,6 +16,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.combined_modelling_results import get_full_chain,get_res_dir,name_models
 
+from nazgul.lib_stat import compute_tension, tau
 from nazgul.Modelling.lib_models import model_res_base,save_data,get_model_res_dir,get_red_chi2
 from nazgul.Modelling.lib_models import load_kwargs_result,get_model_plot
 
@@ -93,24 +94,7 @@ def get_g1g2(path_lenses,nm_g1g2_data,lenses2ignore=[],reload=True):
         kw_glos_tot = _get_g1g2(path_lenses,lenses2ignore=lenses2ignore)
         save_data(kw_glos_tot,nm_g1g2_data,"g1 g1 sg1 sg2 glos sglos")
     return kw_glos_tot
-    
-def tau(val_i,val_j,sig_i,sig_j): 
-    # from dirty_TDC-WST
-    tau_val = np.abs(val_i-val_j)/np.sqrt(sig_i**2+sig_j**2) #~ Z val
-    return tau_val
-    
-def compute_tension(out,truth):
-    if np.shape(out)[0]==2:
-        out_val,out_sig = out
-    else:
-        out_val = out
-        out_sig = None
-        raise RuntimeError("Not implemented")
-    if np.shape(truth)==():
-        truth = truth*np.ones_like(out_val)
-    tension = tau(out_val,truth,out_sig,np.zeros_like(truth))
-    return tension
-    
+
 
 def str_mod(model_name):
     #hard coded for plot

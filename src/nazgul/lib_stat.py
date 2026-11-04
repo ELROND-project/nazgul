@@ -19,7 +19,7 @@ def compute_tension(out,truth):
     tension = tau(out_val,truth,out_sig,np.zeros_like(truth))
     return tension
 
-
+# Thanks to Claude:
 def Mahalanobis_distance(distr, truth):
     # see https://en.wikipedia.org/wiki/Mahalanobis_distance
     # distr: array N,M
