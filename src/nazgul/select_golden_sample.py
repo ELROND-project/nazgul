@@ -277,12 +277,11 @@ def get_golden_sample(gal_lenses,
     tE = np.asarray([gl.thetaE.value for gl in gal_lenses])
     gal_lenses_crop = np.asarray(gal_lenses)[(tE>min_thetaE) & (tE<max_thetaE)]
 
+    n_tot_lens = len(gal_lenses)
+    n_tot_crop = len(gal_lenses_crop)
+    rt_crop    = np.round(n_tot_crop*100/n_tot_lens,2)
+    n_discd_tE = n_tot_lens-n_tot_crop
     if verbose:
-        n_tot_lens = len(gal_lenses)
-        n_tot_crop = len(gal_lenses_crop)
-        rt_crop    = np.round(n_tot_crop*100/n_tot_lens,2)
-        n_discd_tE = n_tot_lens-n_tot_crop
-        
         print(f"N* of selected lenses via theta_E crop: {n_tot_crop}/{n_tot_lens} = {rt_crop}%")
         
     """
@@ -363,25 +362,26 @@ def get_golden_sample(gal_lenses,
         if verbose:
             print(f"Selected {gallens.name}")
         golden_lens_sample.append(gallens)
+
+    n_golden   = len(golden_lens_sample)
+    rt_golden  = np.round(n_golden*100/n_tot_lens,2) 
+    tot_disc   = n_discd_tE+n_discd_2D+n_discd_Dfit+n_discd_lens+n_discd_nml+n_discd_ncst
+    assert tot_disc==(n_tot_lens-n_golden)
+    
+    str_golden =f"N* of selected golden lenses: {n_golden}/{n_tot_lens} = {rt_golden}%\n"
+    str_golden+="Discarded due to:\n"
+    str_golden+="small thetaE, bad fit 2D isopot. map , bad drift fit, bad lens model, no lens mod., unconstr.= total discarded\n"
+    str_golden+=str(n_discd_tE)+" "+str(n_discd_2D)+" "+str(n_discd_Dfit)+" "+str(n_discd_lens)+" "+str(n_discd_nml)+" "+str(n_discd_ncst)+"="+str(tot_disc)+ "\n"
+    str_golden+= str(np.round(n_discd_tE*100/tot_disc,1),"% ",
+          np.round(n_discd_2D*100/tot_disc,1),"% ",
+          np.round(n_discd_Dfit*100/tot_disc,1),"% ",
+          np.round(n_discd_lens*100/tot_disc,1),"% ",
+          np.round(n_discd_nml*100/tot_disc,1),"% ",
+          np.round(n_discd_ncst*100/tot_disc,1),"% ")
     if verbose:
-        n_golden   = len(golden_lens_sample)
-        rt_golden  = np.round(n_golden*100/n_tot_lens,2) 
-        tot_disc   = n_discd_tE+n_discd_2D+n_discd_Dfit+n_discd_lens+n_discd_nml+n_discd_ncst
-        print(f"N* of selected golden lenses: {n_golden}/{n_tot_lens} = {rt_golden}%")
-        print("Discarded due to:")
-        print("small thetaE, bad fit 2D isopot. map , bad drift fit, bad lens model, no lens mod., unconstr.= total discarded")
-        print(n_discd_tE, n_discd_2D,n_discd_Dfit,n_discd_lens,n_discd_nml,n_discd_ncst,"=",
-             tot_disc)
-        print(np.round(n_discd_tE*100/tot_disc,1),"% ",
-              np.round(n_discd_2D*100/tot_disc,1),"% ",
-              np.round(n_discd_Dfit*100/tot_disc,1),"% ",
-              np.round(n_discd_lens*100/tot_disc,1),"% ",
-              np.round(n_discd_nml*100/tot_disc,1),"% ",
-              np.round(n_discd_ncst*100/tot_disc,1),"% ",
-             )
+        print(str_golden)
         
-        assert tot_disc==(n_tot_lens-n_golden)
-    return golden_lens_sample
+    return golden_lens_sample,str_golden
     
 def get_unconstrained_params(chain, important_params=None):
     """Return the subset of important_params that chainconsumer can't bound for this chain."""
@@ -539,7 +539,7 @@ if __name__=="__main__":
     min_chi2_psi_drift = args.min_chi2_psi_drift
     
     gal_lenses = load_gallens_model(model=model)
-    golden_sample = get_golden_sample(gal_lenses,
+    golden_sample,str_golden = get_golden_sample(gal_lenses,
                                       model=model,
                                       min_thetaE=min_thetaE,
                                       max_thetaE=max_thetaE,
@@ -552,6 +552,7 @@ if __name__=="__main__":
                                       verbose=True)
     list_nms_golden_sample = [g.pkl_path for g in golden_sample]
     kw_golden_sample  = {"list_golden_sample":list_nms_golden_sample,
+                         "str_golden":str_golden,
                          "kw_args":args.__dict__}
     with open(nm_smpl,"wb") as f:
         dill.dump(kw_golden_sample,f)
