@@ -532,10 +532,11 @@ def _prettify_prm(prm):
     pretty_p = r"$"+pretty_p+r"$"
     return pretty_p
 """
-def get_full_chain(lens,model,do_prettify_prm_nm=False):
-    chnl_path = get_emcee_file(lens,model)
-    emcee_chain = load_whatever(chnl_path)
-    sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
+def get_full_chain(lens,model,do_prettify_prm_nm=False,emcee_chain=None):
+    if emcee_chain is None:
+        chnl_path = get_emcee_file(lens,model)
+        emcee_chain = load_whatever(chnl_path)
+        sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
     param_mcmc = np.array(param_mcmc)
     if model == "noLOS" or "noLOS" in model:
         mc_sample,param_mcmc = _convert_shear2LOS(mc_sample,param_mcmc)
@@ -556,10 +557,11 @@ def _convert_shear_params(model,params):
     return params
 
 
-def get_partial_chain(lens,model,wanted_param_list,do_prettify_prm_nm=False):
-    chnl_path  = get_emcee_file(lens,model)
-    emcee_chain = load_whatever(chnl_path)
-    sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
+def get_partial_chain(lens,model,wanted_param_list,do_prettify_prm_nm=False,emcee_chain=None):
+    if emcee_chain is None:
+        chnl_path = get_emcee_file(lens,model)
+        emcee_chain = load_whatever(chnl_path)
+        sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
     param_mcmc = np.array(param_mcmc)
     if model == "noLOS" or "noLOS" in model:
         mc_sample,param_mcmc = _convert_shear2LOS(mc_sample,param_mcmc)

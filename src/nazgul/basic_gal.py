@@ -72,7 +72,7 @@ class BasicClass:
         
     def upload_prev(self):
         prev_Class = self.ReadClass(self)
-        if prev_Class is False or prev_Class != self:
+        if not prev_Class or prev_Class != self:
             return False
         # if common attribute, they are overwritten by previous:
         self.__dict__ = {**self.__dict__,**prev_Class.__dict__}
