@@ -16,12 +16,12 @@ from nazgul.mount_doom.fuel_tank import lensfuel_los_gal as lensfuel
 from nazgul.Translator.translator import PartGal
 from nazgul.mount_doom.generate_gal_lens import GalLens
 from nazgul.particle_lenses import default_kwlens_part_ASTA
-from nazgul.mount_doom.cracks_of_doom import kwargs_source_default
+from nazgul.mount_doom.cracks_of_doom import kwargs_source_default, kw_prior_z_source_stnd
 
 mask_center = True
 gauss_tE_prior = True
 overwrite_results = True
-check_if_workin_on_it = True
+check_if_workin_on_it = False
 
 lens_model_list   = ['SIS','LOS_MINIMAL']
 source_model_list = ["SERSIC_ELLIPSE"]
@@ -128,7 +128,6 @@ def _get_kwargs_params(lens,los_included=True):
 n_smpl = int(1e7)
 tE_in = 1.5 # arcsec
 z_lens = 0.2
-from nazgul.mount_doom.cracks_of_doom import kw_prior_z_source_stnd
 
 def _create_SIS_gallens(n_smpl=n_smpl,
                        kwlens_part_AS=default_kwlens_part_ASTA,
@@ -199,11 +198,13 @@ if __name__=="__main__":
         n_burn = 1
         n_run  = 2
         n_smpl_SIS = int(1e3)
+        check_if_workin_on_it= False
     elif run_type==2:
         n_it   = 100
         n_part = 20
         n_burn = 100
         n_run  = 200
+        check_if_workin_on_it = False
     else:
         raise ValueError(f"run_type must be 0,1 or 2, not {run_type}")
     

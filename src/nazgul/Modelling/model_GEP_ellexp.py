@@ -20,6 +20,7 @@ GEP_models = {'parameterization': 'rectangular',
             'pointing_angle_model': None,
             'position_model': 'linear',
             'radial_potential': 'cored_power_law'}
+
 profile_kwargs_list = [GEP_models,None]
 
 source_model_list = ["SERSIC_ELLIPSE"]
