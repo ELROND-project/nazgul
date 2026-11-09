@@ -66,8 +66,8 @@ def same_grid(radec_a, radec_b):
 
 
 class GalLens(BasicLensPart): 
-    _large_attributes_setup  = ["kwargs_lens","lens_prof","Gal","PartLens","cosmo"]
     _large_attributes_unpack = ["Gal","PartLens","cosmo"]
+    _large_attributes_setup  = _large_attributes_unpack + ["kwargs_lens","lens_prof"]
     
     def __init__(self,
                  Galaxy,      # class instance of PartGal
@@ -130,9 +130,123 @@ class GalLens(BasicLensPart):
         return name
         
     #############################
+    def _setup(self):
+        super()._setup()  # unpack Gal and PartLens
+        if hasattr(self,"kwargs_lens") and hasattr(self,"lens_prof"):
+            return 
+        missing = [a for a in ("z_source", "MD_coords", "thetaE") if not hasattr(self, a)]
+        if missing:
+            raise RuntimeError(f"Run galaxy_projection() before setup(); missing {missing}")
+        print("Setting up lensing parameters... (GalLens)")
+        # Convert x,y,z in samples and get masses
+        self.Gal.run()
+        kw_samples = Gal2kw_samples(Gal=self.Gal,proj_index=self.proj_index,
+                                    MD_coords=self.MD_coords,arcXkpc=self.arcXkpc)
+        samples    = kw_samples["RAs"],kw_samples["DECs"]
+        Ms         = kw_samples["Ms"]
+        # Convert in lenses parameters 
+        self.kwargs_lens,self.lens_prof  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
+        if self.ignore_OoBErr:
+            self.lens_prof.ignore_OoBErr = self.ignore_OoBErr
+        print("... Lensing params set up (GalLens)")
+        
+    def run(self,read_prev=True,verbose=True):
+        if read_prev:
+            if self.upload_prev():
+                return
+        super()._setup() # ensures Gal and PartLens are setup up
+        self.galaxy_projection(verbose=verbose)  # may raise ProjectionError
+        self.create_lens(verbose=verbose)
+    
+    def create_lens(self,verbose=True):
+        # setup lensing keywords
+        self.setup() # re-run now as it needs z_source 
+        # Define the radius based on ~ theta_E
+        self.radius = self.thetaE*self.scale_tE
+        #  Padded radius (only as a test)
+        radius_padd  = self.radius*(1+self.padding)
+        _radius_padd = (self.pixel_num_padd*self.deltaPix)/2.
+        np.testing.assert_almost_equal(to_dimless(radius_padd),
+                                       to_dimless(_radius_padd),decimal=2)
+        if verbose:
+            print("Image radius:",np.round(self.radius,3))
+            print("Lens computation (padded) radius:",np.round(radius_padd,3))
+        # compute all lensing maps 
+        # (most computationally intense functions):
+        self.alpha_map
+        self.kappa_map
+        self.hessian_map
+        self.psi_map
+        # Store the results
+        self.store()
+
+    def _is_native_grid(self, _radec):
+        return _radec is None or same_grid(_radec, self._radec)
+
+    def _psi_map(self,_radec=None):
+        if self._is_native_grid(_radec) and "psi_map_padd" in self.__dict__:
+            return self.psi_map
+        self.setup()
+        _radec = self._radec if _radec is None else _radec
+        print("Computing particles lensing potential...")
+        psi = self.lens_prof.function(*_radec, **self.kwargs_lens)
+        psi = array2image(psi)
+        return psi
+
+    def _alpha_map(self,_radec=None):
+        if self._is_native_grid(_radec) and "alpha_map_padd" in self.__dict__:
+            return self.alpha_map
+        self.setup()
+        _radec = self._radec if _radec is None else _radec
+        print("Computing particles lensing deflection...")
+        alpha_x,alpha_y = self.lens_prof.derivatives(*_radec, **self.kwargs_lens)
+        alpha_x,alpha_y = array2image(alpha_x),array2image(alpha_y)
+        return alpha_x,alpha_y
+                
+    def _kappa_map(self,_radec=None):
+        # compute from density map
+        # actually better bc does not depend on the particle profile
+        if _radec is None:
+            _radec     = self._radec
+            kw_extents = self.kw_extents
+        else:
+            kw_extents = get_extents(arcXkpc=self.arcXkpc,_radec=_radec)
+        
+        if same_grid(_radec,self._radec):
+            if "kappa_map_padd" in self.__dict__:
+                return self.kappa_map
+        print("Computing kappa map from density map...")
+        self._unpack_Gal()
+        self.Gal.run()
+        kappa = get_2Dkappa_map(Gal=self.Gal,proj_index=self.proj_index,
+                                MD_coords=self.MD_coords,kwargs_extents=kw_extents,
+                                SigCrit=self.SigCrit,arcXkpc=self.arcXkpc)
+        return kappa
+        
+    def _hessian(self, _radec=None):
+        """Computes the hessian matrix on the grid by taking the gradient 
+        of the alpha map
+        """
+        if self._is_native_grid(_radec):
+            if "hessian_map_padd" in self.__dict__:
+                return self.hessian_map
+            _radec = self._radec
+            alpha_x, alpha_y = self.alpha_map
+        elif same_grid(_radec, self._radec_padd):
+            alpha_x, alpha_y = self.alpha_map_padd
+        else:
+            alpha_x, alpha_y = self._alpha_map(_radec)
+        print("Computing hessian as gradient of the deflection map...")
+        _ra, _dec = _radec
+        RA0, DEC0 = array2image(_ra)[0], array2image(_dec)[:, 0]
+        # taking the non-dimensional pixel scale for the gradient
+        dax_dy, dax_dx = np.gradient(alpha_x, DEC0, RA0) # [d/d(axis0=dec), d/d(axis1=ra)]
+        day_dy, day_dx = np.gradient(alpha_y, DEC0, RA0)
+        return dax_dx, dax_dy, day_dx, day_dy
+"""
     def run(self,read_prev=True,
             verbose=True):
-        """Main function that computes the deflection map:
+        #Main function that computes the deflection map:
             - read the particles
             - iteratively test projections given a source at redshift 
             within z_source_min=z_lens and z_source_max(=4 by default)
@@ -149,7 +263,7 @@ class GalLens(BasicLensPart):
             - compute the deflection map within the grid
             - create the lensed image given the source and simulated observation conditions
             - store the results
-        """
+        #        
         upload_successful = False
         if read_prev:
             upload_successful = self.upload_prev()
@@ -167,7 +281,7 @@ class GalLens(BasicLensPart):
             # Lensing computations:
             #######################
             self.create_lens(verbose=verbose)
-
+            
     def create_lens(self,verbose=True):
         # setup lensing keywords
         self.PartLens.setup(self) # only run now as it needs z_source 
@@ -191,14 +305,12 @@ class GalLens(BasicLensPart):
         self.psi_map
         # Store the results
         self.store()
-
+    
     # the following is meant to be rerun every time we load the class to save space
     # -> computationally not intense 
     def setup_lenses(self):
-        """
-        Setup lensing parameters tailored for lenstronomy
-        """
-        if not hasattr(self,"kwargs_lens") and not hasattr(self,"lens_prof"):
+        #Setup lensing parameters tailored for lenstronomy
+        if not hasattr(self,"kwargs_lens") or not hasattr(self,"lens_prof"):
             print("Setting up lensing parameters... (GalLens)")
             # Convert x,y,z in samples and get masses
             self._unpack_Gal()
@@ -215,80 +327,7 @@ class GalLens(BasicLensPart):
             if self.ignore_OoBErr:
                 self.lens_prof.ignore_OoBErr = self.ignore_OoBErr
             print("... Lensing params set up (GalLens)")
-
-    def _psi_map(self,_radec=None):
-        self.setup()
-        if _radec is None:
-            _radec = self._radec #arcsecs  
-        if same_grid(_radec,self._radec):
-            if "psi_map_padd" in self.__dict__:
-                return self.psi_map
-        print("Computing particles lensing potential...")
-        _ra,_dec = _radec
-        self.setup_lenses()
-        psi = self.lens_prof.function(_ra, _dec, **self.kwargs_lens)
-        psi = array2image(psi)
-        return psi
-        
-    def _alpha_map(self,_radec=None):
-        self.setup()
-        if _radec is None:
-            _radec = self._radec
-        if same_grid(_radec,self._radec):
-            if "alpha_map_padd" in self.__dict__:
-                return self.alpha_map
-        print("Computing particles lensing deflection...")
-        _ra,_dec = _radec
-        self.setup_lenses()
-        alpha_x,alpha_y = self.lens_prof.derivatives(_ra, _dec, **self.kwargs_lens)
-        alpha_x,alpha_y = array2image(alpha_x),array2image(alpha_y)
-        return alpha_x,alpha_y
-        
-    def _kappa_map(self,_radec=None):
-        # compute from density map
-        # actually better bc does not depend on the particle profile
-        if _radec is None:
-            _radec     = self._radec
-            kw_extents = self.kw_extents
-        else:
-            kw_extents = get_extents(arcXkpc=self.arcXkpc,_radec=_radec)
-        
-        if same_grid(_radec,self._radec):
-            if "kappa_map_padd" in self.__dict__:
-                return self.kappa_map
-        print("Computing kappa map from density map...")
-        self._unpack_Gal()
-        self.Gal.run()
-        kappa = get_2Dkappa_map(Gal=self.Gal,proj_index=self.proj_index,
-                                MD_coords=self.MD_coords,kwargs_extents=kw_extents,
-                                SigCrit=self.SigCrit,arcXkpc=self.arcXkpc)
-        return kappa
-        
-    def _hessian(self,_radec=None):
-        """Computes the hessian matrix on the grid by taking the gradient 
-        of the alpha map
-        """
-        # Can be now computed also beyond the cutout
-        if _radec is None or same_grid(_radec,self._radec):
-            _radec          = self._radec  
-            alpha_x,alpha_y = self.alpha_map
-        else:
-            if same_grid(_radec,self._radec_padd):
-                alpha_x,alpha_y = self.alpha_map_padd
-            else:
-                alpha_x,alpha_y = self._alpha_map(_radec=_radec)
-        if same_grid(_radec,self._radec):
-            if "hessian_map_padd" in self.__dict__:
-                return self.hessian_map
-        print("Computing hessian as gradient of the deflection map...")
-        _ra,_dec = _radec
-        RA0,DEC0 = array2image(_ra)[0],array2image(_dec)[:,0]
-        # taking the non-dimensional pixel scale for the gradient
-        dalpha_x_dy, dalpha_x_dx = np.gradient(alpha_x, DEC0, RA0)   # [d/d(axis0=dec), d/d(axis1=ra)]
-        dalpha_y_dy, dalpha_y_dx = np.gradient(alpha_y, DEC0, RA0)
-
-        f_xx,f_xy,f_yx,f_yy  = dalpha_x_dx,dalpha_x_dy,dalpha_y_dx,dalpha_y_dy
-        return f_xx,f_xy,f_yx,f_yy
+"""
 
 
 def get_kw_galpart(kw_galpart={}):
@@ -325,13 +364,16 @@ def gal_already_computed(Gal):
                 return gal_computed
     return gal_computed
 
-def is_gal_to_compute(Gal,reload=True,_list_of_skippable_gals=None,check_if_workin_on_it=True):
+def is_gal_to_compute(Gal,reload=True,_list_of_skippable_gals=None):
     """
     Check if Gal is being already computed 
     (if so for simplicity skip completely even if we could compute individual projections separately)
     then 
     Load Gal (considering gal_already_computed, _list_of_skippable_gals and reload flag)
     """
+    
+    """
+    # This is done per projection
     # Check if someone is already working on this galaxy
     
     # verify that no-one is working on it
@@ -340,7 +382,7 @@ def is_gal_to_compute(Gal,reload=True,_list_of_skippable_gals=None,check_if_work
             warnings.warn(f"This galaxy {Gal.name} is being worked on, skipping- if not, delete the {workin_on_it} file") 
             return None
         set_workin_on_it(Gal.gal_dir,wrk = True)
-
+    """
     # Check if alread_computed and skip if needed
     if gal_already_computed(Gal):
         print("Galaxy already computed")
@@ -357,7 +399,6 @@ def is_gal_to_compute(Gal,reload=True,_list_of_skippable_gals=None,check_if_work
         Gal.run(reload=reload)
 
     return Gal
-from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
 
 def wrapper_forge_all_lenses(reload=True,
                         kw_lenspart={},
@@ -381,7 +422,8 @@ def wrapper_forge_all_lenses(reload=True,
         # Verify if all proj. have not already been computed 
         # (not important if it is a lens or not)
         try:
-            Gal = is_gal_to_compute(Gal,reload=reload,_list_of_skippable_gals=_list_of_skippable_gals)
+            Gal = is_gal_to_compute(Gal,reload=reload,
+                                    _list_of_skippable_gals=_list_of_skippable_gals)
             if Gal is None:
                 # means to be skipped
                 continue
@@ -395,7 +437,7 @@ def wrapper_forge_all_lenses(reload=True,
                     if check_if_workin_on_it:
                         if is_someone_workin_on_it(workin_dir):
                             warnings.warn(f"This gal, {mod_LP.name} is being worked on, skipping - if not, delete the WOI.dll file:\n{workin_dir}/WOI.dll") 
-                            raise RuntimeError()  
+                            raise ProjectionError()  
                     set_workin_on_it(workin_dir,wrk = True)
 
                     mod_LP.run(read_prev=reload)
@@ -425,6 +467,8 @@ def wrapper_forge_all_lenses(reload=True,
                     gc.collect()
                     strikes+=1
                 kw_lenspart["projection_index"]+=1
+                # re-set WOI to false
+                set_workin_on_it(workin_dir,wrk = False)
             if strikes==3:
                 print(f"All projections of Galaxy {Gal_name} are not supercritical")
             print("Next galaxy.")
@@ -436,7 +480,7 @@ def wrapper_forge_all_lenses(reload=True,
             if _test:
                 print("TEST - Stopping after only one")
                 set_workin_on_it(Gal.gal_dir,wrk = True)
-                return all_lenses
+                return all_Gal
         except RuntimeError as RE:
             print(f'RUNTIME ERROR FOR THIS GALAXY:\n{RE}\nMOVING TO NEXT')
             kw_lenspart["projection_index"] = 0
@@ -445,21 +489,18 @@ def wrapper_forge_all_lenses(reload=True,
                 Gal.slim_down()
             except:
                 pass
+            mod_LP = None
             try:
                 del mod_LP
                 gc.collect()
-            except NameError or UnboundLocalError:
-                mod_LP = None
+            except:
                 pass
             log_memory(f"after {Gal_name}")
             if debug:
                 log_top_allocs(f"after {Gal_name}")
-        set_workin_on_it(Gal.gal_dir,wrk = True)
     if verbose and not _test:
         print(f"Found n={N_lenses} Lenses")
-        print(f"i.e. {np.round(N_lenses/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
-
-    
+        print(f"i.e. {np.round(N_lenses/3*len(all_Gal)*100,1)}% of Galaxies (considering their rotations)")
 
 # get a lens no matter what:
 def wrapper_get_rnd_lens(reload=True,
@@ -484,14 +525,14 @@ def wrapper_get_rnd_lens(reload=True,
                 log_memory(f"before GalLens run {Gal.name}")
                 mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                 mod_LP.run(read_prev=reload)
-                mod_LP.Gal.slim_down()
-                log_mem(f"after GalLens run {Gal.name}")
+                log_memory(f"after GalLens run {Gal.name}")
                 pji = kw_lenspart["projection_index"]
                 print(f"Projection {pji} {Gal.name} is supercritical!\n")
                 # Plotting density for each individual particle
                 plot_AMR_densityXpart(Gal=mod_LP.Gal,
                                       proj_index=pji,
                                       savedir=mod_LP.savedir)
+                mod_LP.Gal.slim_down()
                 plt.close("all")
                 log_memory(f"after plot_AMR_densityXpart run {Gal.name}")
                 return mod_LP
