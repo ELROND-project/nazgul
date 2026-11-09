@@ -488,7 +488,6 @@ def model_lens(lens,kw_model,
     lens_model_list   = kw_model["lens_model_list"]
     source_model_list = kw_model["source_model_list"]
     get_kwargs_params = kw_model["get_kwargs_params"]
-
     print("\nModelling lens "+lens.name+"\n###############################")   
     plot_kappamap(lens.gallens.kappa_map, 
                   extent_kpc=lens.gallens.kw_extents["extent_kpc"],
@@ -499,8 +498,8 @@ def model_lens(lens,kw_model,
     # models
     kwargs_model = {'lens_model_list': lens_model_list,
                     'source_light_model_list': source_model_list}
-    if hasattr(kw_model,"profile_kwargs_list"):
-        kwargs_model["profile_kwargs_list"] = kw_model["profile_kwargs_list"]
+    if "profile_kwargs_list" in kw_model:
+        kwargs_model["lens_profile_kwargs_list"] = kw_model["profile_kwargs_list"]
     
     kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs,mask_center=mask_center)
     if gauss_tE_prior:
@@ -668,7 +667,6 @@ def run_model(res_dir_base,
                           "snaps":snaps}
     res_dir = get_res_dir(res_dir_base,simsuite,sim,
                           subsim=subsim,run_type=run_type)
-
     if lenses2model == []:
         print("\nGetting catalogue of lenses 2 model\n###################\n")
         gal_lenses  = get_lenses2model(res_dir=res_dir,
@@ -678,7 +676,6 @@ def run_model(res_dir_base,
                                        min_thetaE=min_thetaE,
                                        skip_lenses=lenses2skip)
         print("\nCatalogue of lenses 2 model obtained\n###################\n")
-        
         for i,gal_lens in enumerate(gal_lenses):  
             print("\nLoading lens "+gal_lens.name)
 
