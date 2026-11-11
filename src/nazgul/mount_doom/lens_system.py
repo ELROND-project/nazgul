@@ -4,7 +4,7 @@ Restructured once more, now we take LensFuel to define several aspects which dep
     - kwargs_add_lens (e.g. LOS)
     - Simulation properties
 """
-import dill
+import dill,os
 import warnings
 import numpy as np
 from copy import deepcopy
@@ -106,24 +106,56 @@ class LensSystem(BasicGal):
             self.lensFuel._identity(),
             self.kwargs_lensmodel)
         
+    def _needs_setup(self):
+        # overwrite need setup to the specifics of this class
+        
+        # if lacks very necessary classes: 
+        _maps  =["alpha","psi","hessian","kw_shear","kw_crit"]
+        _req_classes = [i+"_default" for i in _maps]
+        if not all([hasattr(self,rqc) for rqc in _req_classes]):
+            return True
+            
+        # if the gallens needs to be setup
+        if self.gallens._needs_setup():
+            return True
+        # if the source position has to be sampled
+        if not hasattr(self,"kwargs_source"):
+            return True
+        # if truth are not present
+        if not os.path.isfile(self.path_kw_truths):
+            return True
+        # if lacks necessary classes: (note:lightweight, so we still store them
+        _req_classes = ["data_class","psf_class","source_model_class","kwargs_numerics"]
+        if not all([hasattr(self,rqc) for rqc in _req_classes]):
+            return True
+            
+        return False
+        
     @silencer
     def setup(self,
                 #update_source_pos=True,
                 reload=True,
                 verbose=verbose):
+        if not self._needs_setup():
+            # skip unecessary setup
+            return 0
         upload_successful = False
         if reload:
             upload_successful = self.upload_prev()
+            
         if not upload_successful:
-            self.gallens.unpack()
-            self.gallens.run()
-            self.create_lens(verbose=verbose)
-            # change of philosophy: source need to be sampled ONCE, then it's fixed
-            self.setup_kwargs_source(verbose=verbose)
-            # save "truths values": for now: theta_E, kwargs_source
-            self.save_truths()
-            # store the results
-            self.store()    
+            self._setup(verbose=verbose)
+            
+    def _setup(self,verbose=verbose):
+        self.gallens.unpack()
+        self.gallens.run()
+        self.create_lens(verbose=verbose)
+        # change of philosophy: source need to be sampled ONCE, then it's fixed
+        self.setup_kwargs_source(verbose=verbose)
+        # save "truths values": for now: theta_E, kwargs_source
+        self.save_truths()
+        # store the results
+        self.store()
 
     def save_truths(self):
         # save theta_E, kwargs_source and eventual kwargs_add_lenses
@@ -216,9 +248,13 @@ class LensSystem(BasicGal):
                 setattr(self, default_attr, compute_fn())
             return getattr(self, default_attr)
         radec_attr = "_radec_"+cache_attr
-        if not hasattr(self, radec_attr) or not np.array_equal(getattr(self, radec_attr), _radec):
-            setattr(self, radec_attr, _radec)
-            setattr(self, cache_attr, compute_fn(_radec=_radec))
+
+        if (not hasattr(self, cache_attr)
+                or not hasattr(self, radec_attr)
+                or not np.array_equal(getattr(self, radec_attr), _radec)):
+            value = compute_fn(_radec=_radec)   # may raise: nothing gets stored
+            setattr(self, cache_attr, value)
+            setattr(self, radec_attr, np.array(_radec, copy=True))
         return getattr(self, cache_attr)
     #############################
 
@@ -252,10 +288,11 @@ class LensSystem(BasicGal):
         return 0
 
     def _reformat_kwargs_lensmodel(self):
-        # ensure that kwargs_lensmodel has at least 
+        # ensure that kwargs_lensmodel has at least the cosmology,
         # the default z_lens and z_source (if not input differently)
         default_kw_lm = {"z_lens":self.gallens.z_lens,
-                         "z_source":self.gallens.z_source}
+                         "z_source":self.gallens.z_source,
+                         "cosmo":self.cosmo}
         
         kwargs_lensmodel = self.kwargs_lensmodel
         if kwargs_lensmodel is None or kwargs_lensmodel=={}:
@@ -280,6 +317,8 @@ class LensSystem(BasicGal):
         add_kwargs_lens        = self.kwargs_add_lenses["kwargs_lens"]
         lens_model_list        = ["PART_GAL",*add_lens_model_list]
         self.kwargs_lens       = [{},*add_kwargs_lens]
+        # gallens is passed as an object, needs to be setup before that
+        self.gallens.setup()
         pkwl_part_lens         = {"lenspart":self.gallens}
         # if the z are given explicitely and are different from the default ones, use those -> will need to rescale all the maps
         if self.kwargs_lensmodel.get("z_lens",self.gallens.z_lens)!=self.gallens.z_lens:
@@ -293,7 +332,7 @@ class LensSystem(BasicGal):
             profile_kwargs_list.append({})
         self.lens_model = LensModel(lens_model_list=lens_model_list,
                                     profile_kwargs_list = profile_kwargs_list,
-                                    **self.kwargs_lensmodel)
+                                    **self.kwargs_lensmodel) # this might not be necessary (but shoudln't hurt either)
         if verbose:
             print("... Lensing parameters set up")
     
@@ -308,8 +347,6 @@ class LensSystem(BasicGal):
             _radec = self.gallens._radec
         print("Computing lensing alpha map...")
         _ra,_dec = _radec
-        # If we get here, gallens needs to be properly setup
-        self.gallens.setup_lenses()
         alpha_x,alpha_y = self.lens_model.alpha(_ra, _dec, self.kwargs_lens)
         alpha_x,alpha_y = array2image(alpha_x),array2image(alpha_y)
         return alpha_x,alpha_y
@@ -321,14 +358,13 @@ class LensSystem(BasicGal):
         if _radec is None:
             _radec = self.gallens._radec #arcsecs  
         _ra,_dec = _radec
-        # if we get here, gallens needs to be properly setup
-        self.gallens.setup_lenses()
         psi = self.lens_model.potential(_ra, _dec, self.kwargs_lens)
         psi = array2image(psi)
         return psi
         
 
     def alpha_map(self, _radec=None):
+        
         _alpha_x,_alpha_y = self._cached_by_radec("alpha",self._alpha_map,_radec=_radec)
         return _alpha_x,_alpha_y
         """
@@ -361,12 +397,10 @@ class LensSystem(BasicGal):
         # compute analytically from the particles -> actually should not be the way to do it !
         print("Computing kappa map from PM...")
         # the following should prob. be in the unpack function
-        self.gallens.setup_lenses()
         if _radec is None:
             _radec = self.gallens._radec
         _ra,_dec = _radec
         # if we get here, gallens needs to be properly setup
-        self.gallens.setup_lenses()
         kappa = self.lens_model.kappa(_ra, _dec, self.kwargs_lens)
         kappa = array2image(kappa)
         return kappa
@@ -560,9 +594,11 @@ class LensSystem(BasicGal):
         rnd_seed = self._rnd_seed
         # fixing seed for reproducibility            
         #print(f"Fixing seed to {rnd_seed}")
+        rnd_state = np.random.get_state()
         np.random.seed(rnd_seed)
         image_SimObsnoisy  = image_SimObs + self.SimObs.noise_for_model(model=image_SimObs)
         error_SimObs       = self.SimObs.estimate_noise(image_SimObsnoisy) # NOT variance
+        np.random.set_state(rnd_state)
         return image_SimObsnoisy,error_SimObs
         
     def true_image(self):
@@ -632,10 +668,11 @@ def _get_lensed_image(alpha_map_fnct,
     source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, 
                                                                    kwargs_source_list, k=None)
     # the following is to compare the Sim to the "native" resolution of the gallens image
-    sim_deltapix  = imageNumerics.grid_class.pixel_width
-    if deltaPix is None:
+    sim_deltapix = imageNumerics.grid_class.pixel_width
+    gal_deltapix = deltaPix
+    if gal_deltapix is None:
         gal_deltapix  = to_dimless(gallens.deltaPix)
-    if sim_deltapix+1e15<gal_deltapix:
+    if sim_deltapix<gal_deltapix*(1-1e-9):
         raise RuntimeError("Simulated observatory can not have higher resolution than baseline simulation") 
     image_sim = imageNumerics.re_size_convolve(source_light, unconvolved=unconvolved)
     return image_sim
@@ -675,7 +712,7 @@ def compute_kw_critical_curve_caustics(alpha_x,
     if not np.any(eigen_rad_orig<0):
         raise RuntimeError("No negative radial eigenvalue - something is off")
     if not np.any(eigen_tan_orig<0):
-        raise RuntimeError("No negative radial eigenvalue - something is off")
+        raise RuntimeError("No negative tangential eigenvalue - something is off")
     
     # clipping outliers and smoothing with a guassian filter (wrapper try to optimise the smoothing)
     eigen_rad,is_rad_smooth = wrapper_clip_smooth_map(eigen_rad_orig,name="Eigen radial",min_points=min_points)
@@ -917,10 +954,25 @@ def _plot_caustics(kw_caustics,dir_res=tmp_dir):
     
 def interpolate_map(map,coord,coord_out):
     map_flat = image2array(map)
-    map_out = griddata(coord,map_flat,coord_out)
+    map_out  = griddata(coord,map_flat,coord_out)
     if len(np.shape(coord_out))==2:
         map_out = array2image(map_out)
     return map_out
+"""
+# another option, marginally more complex, but faster and marginally more accurate but assumes always a regular grid
+from scipy.interpolate import RegularGridInterpolator
+
+
+_x = array2image(flat_x)[0]
+_y = array2image(flat_y)[:,0]
+f = RegularGridInterpolator((_y,_x), map, method="linear",
+                          bounds_error=False, fill_value=None)  # fill_value=None -> extrapolate
+# the following example fit it to the input coords to show that it's indeed 1:1
+map_out = f(np.column_stack([flat_y, flat_x])).reshape(map.shape)
+#plt.imshow(map - map_out ,cmap="bwr",vmin=-1e-16,vmax=1e-16)
+#plt.colorbar()
+"""
+
 
 # add a map coordinate to pixel that can take either kpc or arcsec
 # add to Sim, as this is the one we are interested on
