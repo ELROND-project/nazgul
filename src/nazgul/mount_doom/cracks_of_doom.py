@@ -75,7 +75,7 @@ import nazgul.configurations as conf
 
 # source parametrisation
 kwargs_sersic_ellipse_basic = {'R_sersic':1,  
-                            'n_sersic': 3, 
+                            'n_sersic': 1.5, 
                             'center_x': 0,
                             'center_y': 0, 
                             'e1': 0.0, 
