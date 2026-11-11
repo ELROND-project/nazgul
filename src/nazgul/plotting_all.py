@@ -6,7 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from stat_lenses import get_all_gallens,get_catdir_stat
+from nazgul.stat_lenses import get_all_gallens,get_catdir_stat
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.mount_doom.lens_system import LensSystem
 
@@ -16,7 +16,7 @@ def auto_grid(n):
     return int(nrows), int(ncols)
 
 
-def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,suptitle=None,extent_type="arc"):
+def plot_grid(images,savename=None,extents=None,cmap="hot",titles=None,label=None,suptitle=None,extent_type="arc"):
     n = len(images)  # or any list of things to plot
     
     nrows, ncols = auto_grid(n)
@@ -28,7 +28,13 @@ def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,sup
     for i, img in enumerate(images):
         if extents is not None:
             extent = extents[i]
-        im0 = axes[i].imshow(img,origin="lower",extent=extent,cmap=cmap)
+        else:
+            extent = None
+        if type(cmap)==str:
+            cmap_i = cmap
+        elif type(cmap) == list:
+            cmap_i = cmap[i]
+        im0 = axes[i].imshow(img,origin="lower",extent=extent,cmap=cmap_i)
         if extent_type=="kpc":
             axes[i].set_xlabel("X [kpc]")
             axes[i].set_ylabel("Y [kpc]")
@@ -48,9 +54,12 @@ def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,sup
     if suptitle:
         plt.suptitle(suptitle)
     plt.tight_layout()
-    plt.savefig(savename)
-    print(f"Saved {savename}")
-    plt.close()
+    if savename:
+        plt.savefig(savename)
+        print(f"Saved {savename}")
+        plt.close()
+    else:
+        plt.show()
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot a grid of give precomputed lenses")
