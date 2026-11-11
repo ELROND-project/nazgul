@@ -10,7 +10,7 @@ from pathlib import Path
 from functools import cached_property 
 
 import astropy.units as u
-from scipy.ndimage import zoom
+from scipy.ndimage import zoom,map_coordinates
 from scipy.interpolate import splprep, splev, RectBivariateSpline
 
 from lenstronomy.Util import util
@@ -19,7 +19,9 @@ from lenstronomy.SimulationAPI.sim_api import SimAPI
 
 # My libs
 from python_tools.get_res import LoadClass
+from python_tools.conversion import find_index
 from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
+
 # general path
 from nazgul.pathfinder import path_nazgul, std_data_dir
 from nazgul.ObsData.band import BasicBand
@@ -93,6 +95,7 @@ def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
             kwargs_source = kwargs_source_default
         else:
             kwargs_source = lens.kwargs_source_def
+    kwargs_source = dict(kwargs_source)
     if "abs_magnitude" in kwargs_source.keys():
         # convert absolute magnitude in apparent
         Mag = kwargs_source["abs_magnitude"]
@@ -309,13 +312,12 @@ def kw_prior2like_zs(kw_prior_z_source,z_lens):
         # wrapper funct. to fix the z_lens
         def like_func_zs(z_source,*args):
             f_lkl_pr = kw_prior_z_source["f_lkl_z_source"]
-            return f_lkl_pr(z_source=z_source,z_lens=z_lens,*args)
+            assert args == () # needs no other arguments or it breaks
+            return f_lkl_pr(z_source=z_source,z_lens=z_lens)
         kw_like_zs["like_func"] = like_func_zs
         kw_like_zs["like_prms"] = kw_prior_z_source.get("prms_lkl_z_source",[]) 
         return kw_like_zs
     elif "fixed_z_source" in prior_keys:
-        def lkl(zs,*args):
-            return 0 
         kw_like_zs = {"fixed":kw_prior_z_source["fixed_z_source"]}
     return kw_like_zs
         
@@ -370,9 +372,6 @@ def get_RADEC(_radec):
     RA,DEC   = util.array2image(_ra),util.array2image(_dec)
     return RA,DEC
 
-from scipy.ndimage import map_coordinates
-from python_tools.conversion import find_index
-
 def get_xy_indexes(ref_x,ref_y, x, y):
     ref_x = np.atleast_1d(np.asarray(ref_x, dtype=np.float64))
     ref_y = np.atleast_1d(np.asarray(ref_y, dtype=np.float64))
@@ -396,7 +395,7 @@ def interp_map(map,map_x,map_y,x,y):
 class BasicLensPart(BasicGal):
     _large_attributes_unpack = []
     _large_attributes_setup  = []
-
+    _attributes_not_to_store = ["_radec","_radec_padd"]
     def __init__(self,
                  Galaxy,      # class instance of PartGal
                  projection_index, # projection index
@@ -496,13 +495,12 @@ class BasicLensPart(BasicGal):
         print("Unpacking basic lens...")
         # Gal & cosmo
         self._unpack_Gal()
-        
         # re-define PartLens
         self._unpack_PartLens()
 
     def _setup(self):
         self._unpack_Gal()
-        self.PartLens = PartLens(self.kwlens_part)
+        self._unpack_PartLens() # also constructing it if needed
         
     def store(self):
         store_lens(self)
@@ -524,11 +522,11 @@ class BasicLensPart(BasicGal):
     #
     # Coordinates 
     # 
-    @property
+    @cached_property
     def _radec(self):
         return util.make_grid(self.pixel_num,to_dimless(self.deltaPix))
 
-    @property
+    @cached_property
     def _radec_padd(self):
         return util.make_grid(self.pixel_num_padd,to_dimless(self.deltaPix))
 
@@ -636,7 +634,7 @@ class BasicLensPart(BasicGal):
                                         sample_z_source=self.sample_z_source,
                                         min_thetaE=self.min_thetaE,
                                         arcXkpc=self.arcXkpc,verbose=verbose,
-                                        reload=not recompute,
+                                        reload=False, # if it gets here, it has to be reloaded
                                        **kwargs_proj)
         # store results
         assert self.proj_index == kwres_proj_res["proj_index"]

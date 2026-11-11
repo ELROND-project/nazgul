@@ -67,7 +67,6 @@ class LensFuel(BasicClass):
         mkdir(self.savedir)
         # store it in the model_res_dir (not in the lenssystem
         store_class(self,path=self.pkl_path,overwrite=False,update=False)
-        return 0
         
     @property
     def subdir(self):
@@ -132,15 +131,14 @@ class LensFuel(BasicClass):
 # add a map coordinate to pixel that can take either kpc or arcsec
 # add to Sim, as this is the one we are interested on
 def map_coord2pix(data_class,coord1,coord2,arcXkpc):
-    if type(coord1)==u.quantity.Quantity:
-        assert type(arcXkpc)==u.quantity.Quantity
+    if isinstance(coord1, u.Quantity):
+        assert isinstance(arcXkpc, u.Quantity)
         assert coord1.unit == coord2.unit
         if coord1.unit == u.kpc:
             coord1 = coord1*arcXkpc
             coord2 = coord2*arcXkpc
-            coord1 = coord1*arcXkpc
         elif coord1.unit!=u.arcsec:
-            raise ValueError(f"Only accepeted units are kpc or arcsec, not {coord1.unit}")
+            raise ValueError(f"Only accepted units are kpc or arcsec, not {coord1.unit}")
         coord1 = coord1.value
         coord2 = coord2.value    
     return data_class.map_coord2pix(coord1,coord2)
