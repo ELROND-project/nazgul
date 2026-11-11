@@ -78,6 +78,8 @@ class LensFuel(BasicClass):
         return self.savedir/f"{self.name}_{self._hash_b64}.pkl"
 
     def _identity(self):
+        hash_addlns = hash(self.get_kw_add_lenses)
+        hash_addlns = int(str(hash_addlns)[:6])
         return (
             self.name,
             self.band_obs._identity(),
@@ -86,8 +88,7 @@ class LensFuel(BasicClass):
             self.kwargs_add_lenses,
             self.source_model_list,
             self.kwargs_add_lenses_init, # initial values
-            self.get_kw_add_lenses.__name__) # we at least save the name of the function
-        
+            hash_addlns) 
     # Lens Add: 
     #def get_kw_add_lenses(self,gallens):
     #    # Each instance of this class should define it depending on the model
