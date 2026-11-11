@@ -74,7 +74,8 @@ import nazgul.configurations as conf
 ##########################
 
 # source parametrisation
-kwargs_sersic_ellipse_basic = {'R_sersic': .1, 'n_sersic': 3, 
+kwargs_sersic_ellipse_basic = {'R_sersic':1,  
+                            'n_sersic': 3, 
                             'center_x': 0,
                             'center_y': 0, 
                             'e1': 0.0, 
@@ -372,6 +373,8 @@ def get_RADEC(_radec):
     RA,DEC   = util.array2image(_ra),util.array2image(_dec)
     return RA,DEC
 
+# Obsolete
+"""
 def get_xy_indexes(ref_x,ref_y, x, y):
     ref_x = np.atleast_1d(np.asarray(ref_x, dtype=np.float64))
     ref_y = np.atleast_1d(np.asarray(ref_y, dtype=np.float64))
@@ -385,13 +388,14 @@ def get_xy_indexes(ref_x,ref_y, x, y):
     xy_indexes = np.stack([index_y, index_x], -1).T
     return xy_indexes
 
+
 def interp_map(map,map_x,map_y,x,y):
     if isinstance(map, (tuple, list)):
         return type(map)(interp_map(map_i,map_x,map_y,x,y) for map_i in map)
     xy_indexes = get_xy_indexes(ref_x=map_x,ref_y=map_y,x=x,y=y)
     int_map    = map_coordinates(map, xy_indexes, order=3, mode="nearest")
     return int_map
-    
+"""
 class BasicLensPart(BasicGal):
     _large_attributes_unpack = []
     _large_attributes_setup  = []
@@ -524,12 +528,17 @@ class BasicLensPart(BasicGal):
     # 
     @cached_property
     def _radec(self):
-        return util.make_grid(self.pixel_num,to_dimless(self.deltaPix))
-
+        #return util.make_grid(self.pixel_num,to_dimless(self.deltaPix))
+        # obtain this from cropping _radec_padd: pixel identical
+        ra, dec = self._radec_padd
+        crop = lambda a: util.image2array(self._crop_padd(util.array2image(a)))
+        return crop(ra), crop(dec)
+        
     @cached_property
     def _radec_padd(self):
         return util.make_grid(self.pixel_num_padd,to_dimless(self.deltaPix))
-
+        
+        
     @property
     def kw_extents(self):
         kw_extents = get_extents(arcXkpc=self.arcXkpc,
