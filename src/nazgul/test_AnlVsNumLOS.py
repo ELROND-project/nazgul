@@ -8,7 +8,7 @@ from python_tools.image_manipulation import plot_comp_two_images
 
 from nazgul.particle_galaxy import PartGal
 from nazgul.lens_part_los import get_kw_los,LensPartLOS
-from nazgul.mount_doom.generate_particle_lens import get_extents,LensPart,kw_prior_z_source_minimal
+from nazgul.MountDoom.generate_particle_lens import get_extents,LensPart,kw_prior_z_source_minimal
 from nazgul.configurations import pixel_num
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
     

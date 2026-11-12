@@ -6,13 +6,13 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.masking import mask_SEAGLE,mask_center
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
-from nazgul.mount_doom.generate_particle_lens_dom import LensPart
+from nazgul.MountDoom.generate_particle_lens_dom import LensPart
 from nazgul.configurations import pixel_num,min_thetaE
-from nazgul.mount_doom.cracks_of_doom import source_model_list
-from nazgul.mount_doom.cracks_of_doom import kwargs_band_sim,kw_prior_z_source_stnd
+from nazgul.MountDoom.cracks_of_doom import source_model_list
+from nazgul.MountDoom.cracks_of_doom import kwargs_band_sim,kw_prior_z_source_stnd
 from nazgul.pathfinder import get_lens_highdir
 
-import nazgul.mount_doom.cracks_of_doom as cod
+import nazgul.MountDoom.cracks_of_doom as cod
 
 verbose = True
 from nazgul.particle_galaxy import PartGal

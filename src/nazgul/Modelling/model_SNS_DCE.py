@@ -19,7 +19,7 @@ from nazgul.Modelling.lib_models import save_data,plot_model_plot
 from nazgul.Modelling.lib_models import n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
 # No LOS or additional lenses
-from nazgul.mount_doom.fuel_tank import std_lensfuel
+from nazgul.MountDoom.fuel_tank import std_lensfuel
 
 # WOI cross-machine lock
 from python_tools.tools import mkdir

@@ -5,7 +5,7 @@ so that they are standardised
 from copy import deepcopy
 from python_tools.tools import to_uid
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.mount_doom.lib_LensFuel import LensFuel,empty_kwargs_add_lenses
+from nazgul.MountDoom.lib_LensFuel import LensFuel,empty_kwargs_add_lenses
 # No LOS (or any other lens), HST F160W observations, Spherical Sersic source 
 # the vanilla version of lensfuel, the diesel
 std_lensfuel = LensFuel("standard")

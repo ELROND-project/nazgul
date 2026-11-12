@@ -10,7 +10,7 @@ from lenstronomy.Plots import chain_plot
 
 from nazgul.plot_PL import plot_kappamap
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model

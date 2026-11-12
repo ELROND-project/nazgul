@@ -7,9 +7,9 @@ import numpy as np
 from python_tools.tools import mkdir
 
 from nazgul.Modelling.pathfinder import model_res_base
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 # LOS simulated as dependent on gal name (not z)
-from nazgul.mount_doom.fuel_tank import std_lensfuel as lensfuel
+from nazgul.MountDoom.fuel_tank import std_lensfuel as lensfuel
 
 mask_center = True
 gauss_tE_prior = True
@@ -79,7 +79,7 @@ if __name__=="__main__":
     # we can trick it by defining it a priori
     # can't be 0,0 exactly as it would trigger an error :
     kwargs_source_pos = {"center_x":1e-9,"center_y":1e-9}
-    from nazgul.mount_doom.cracks_of_doom import kwargs_source_default
+    from nazgul.MountDoom.cracks_of_doom import kwargs_source_default
     lens2model.kwargs_source = kwargs_source_default|kwargs_source_pos
     lens2model.setup(reload=False)
     lens = setup_lens(lens=lens2model,

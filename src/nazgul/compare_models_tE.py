@@ -22,7 +22,7 @@ from chainconsumer.plotting import plot_dist
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever
 
-from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.MountDoom.cracks_of_doom import LoadLens
 from nazgul.Translator import std_sim, std_simsuite, std_subsim
 from nazgul.Modelling.lib_models import get_red_chi2, get_model_plot
 

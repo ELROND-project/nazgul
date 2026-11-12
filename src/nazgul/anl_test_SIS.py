@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.Translator.translator import PartGal 
-from nazgul.mount_doom.generate_gal_lens import GalLens
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.generate_gal_lens import GalLens
+from nazgul.MountDoom.lens_system import LensSystem
 
 from lenstronomy.LensModel.lens_model import LensModel
 

@@ -42,7 +42,7 @@ from nazgul.likelihood import Likelihood
 from nazgul.project_gal import get_2Dkappa_map,ProjectionError
 from nazgul.project_gal import Gal2kw_samples,ProjGal
 from nazgul.pathfinder import get_lens_lowdir_from_galdir,get_proj_dir_from_galdir
-from nazgul.mount_doom.cracks_of_doom import BasicLensPart,get_extents,kw_prior_z_source_stnd
+from nazgul.MountDoom.cracks_of_doom import BasicLensPart,get_extents,kw_prior_z_source_stnd
 #Default values
 import nazgul.configurations as conf
 # Plotting tools 

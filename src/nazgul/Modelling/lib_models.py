@@ -22,8 +22,8 @@ from python_tools.tools import mkdir,to_dimless,dict_equal
 
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
-#from nazgul.mount_doom.cracks_of_doom import LoadLens #,get_extents
-from nazgul.mount_doom.lens_system import LensSystem
+#from nazgul.MountDoom.cracks_of_doom import LoadLens #,get_extents
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 from nazgul.stat_lenses import get_all_gallens
 
@@ -44,7 +44,7 @@ n_part_std = 300
 n_burn_std = 700
 n_run_std  = 7000
 
-from nazgul.mount_doom.fuel_tank import std_lensfuel
+from nazgul.MountDoom.fuel_tank import std_lensfuel
 def setup_lens(lens,
                res_dir,
                _plot=True,

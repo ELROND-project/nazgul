@@ -6,7 +6,7 @@ from python_tools.tools import mkdir
 from nazgul.Modelling.pathfinder import model_res_base
 
 # LOS simulated as dependent on gal name (not z)
-from nazgul.mount_doom.fuel_tank import lensfuel_los_gal as lensfuel
+from nazgul.MountDoom.fuel_tank import lensfuel_los_gal as lensfuel
 
 lens_model_list   = ['EPL_BOXYDISKY_ELL','LOS_MINIMAL']
 source_model_list = ["SERSIC_ELLIPSE"]

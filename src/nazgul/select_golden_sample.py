@@ -16,7 +16,7 @@ from python_tools.tools import silencer,to_uid_base64
 from nazgul.Translator import std_kw_sim
 from nazgul.fit_iso_ell import fit_iso
 from nazgul.masking import grow_mask
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.combined_modelling_results import get_res_dir,get_emcee,get_modelling_prms,get_partial_chain,_convert_shear_params,name_models #,get_lensfuel
 
 from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot

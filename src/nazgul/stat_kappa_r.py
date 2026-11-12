@@ -13,7 +13,7 @@ from pyinstrument import Profiler
 
 from python_tools.get_res import load_whatever
 
-from nazgul.mount_doom.generate_gal_lens import get_kw_galpart
+from nazgul.MountDoom.generate_gal_lens import get_kw_galpart
 from nazgul.plot_AMRxpart import get_kw_1D_density
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Translator.translator import get_all_PG,get_z_snap

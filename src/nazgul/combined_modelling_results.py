@@ -29,10 +29,10 @@ from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.pathfinder import path_nazgul
 from nazgul.lib_stat import tension_multidim
-from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.MountDoom.cracks_of_doom import LoadLens
 from nazgul.Translator import std_sim,std_simsuite,std_subsim,get_simsuite_from_code,std_kw_sim
 from nazgul.Translator.translator import standardise_snap
-from nazgul.mount_doom.lib_LensFuel import LensFuel
+from nazgul.MountDoom.lib_LensFuel import LensFuel
 
 # debugging memory leak tools 
 from python_tools.memory_leak_tools import log_memory,log_top_allocs
@@ -910,7 +910,7 @@ def get_model_from_res_dir(res_dir,model_res=model_res_base):
 
 # It's going to be useful sooner than later:
 # define available lensfuels defined in the fuel tank
-fuel_tank = import_module(".fuel_tank","nazgul.mount_doom")
+fuel_tank = import_module(".fuel_tank","nazgul.MountDoom")
 default_lensfuel = {val.name: val
     for name, val in vars(fuel_tank).items()
     if not name.startswith("__")

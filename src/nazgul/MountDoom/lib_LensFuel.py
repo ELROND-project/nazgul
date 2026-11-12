@@ -8,9 +8,9 @@ from python_tools.tools import to_dimless,mkdir
 from nazgul.pathfinder import path_nazgul
 from nazgul.ObsData.band import std_band_obs
 from nazgul.basic_gal import BasicClass,store_class
-from nazgul.mount_doom.cracks_of_doom import band_true as std_band_true
-from nazgul.mount_doom.cracks_of_doom import source_model_list as std_source_model_list
-from nazgul.mount_doom.cracks_of_doom import kwargs_source_default as std_kwargs_source_init
+from nazgul.MountDoom.cracks_of_doom import band_true as std_band_true
+from nazgul.MountDoom.cracks_of_doom import source_model_list as std_source_model_list
+from nazgul.MountDoom.cracks_of_doom import kwargs_source_default as std_kwargs_source_init
 
 
 # find better name

@@ -14,7 +14,7 @@ from matplotlib.colors import ListedColormap
 from lenstronomy.Util.util import image2array,array2image
 
 from nazgul.pathfinder import std_sim
-from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.MountDoom.cracks_of_doom import LoadLens
 from nazgul.fit_iso_ell import get_kwisodens,_get_kwiso
 
 from python_tools.get_res import load_whatever
@@ -23,8 +23,8 @@ from python_tools.tools import to_dimless
 # temp. modelling path
 
 from nazgul.Modelling.lib_models import setup_lens,model_res_base,get_kw_lens_mask
-from nazgul.mount_doom.lens_system import LensSystem
-import nazgul.mount_doom.cracks_of_doom as cod
+from nazgul.MountDoom.lens_system import LensSystem
+import nazgul.MountDoom.cracks_of_doom as cod
 from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 from python_tools.tools_WOI import is_someone_workin_on_it
 from nazgul.Translator import std_sim,std_simsuite,std_subsim

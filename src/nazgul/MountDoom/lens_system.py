@@ -24,20 +24,20 @@ from lenstronomy.LensModel.lens_model import LensModel
 from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 
 # My libs
-import nazgul.mount_doom.cracks_of_doom as cod
+import nazgul.MountDoom.cracks_of_doom as cod
 from python_tools.get_res import load_whatever
 from python_tools.tools import to_dimless,mkdir,to_uid,silencer,dict_equal
 
 # Class structure
 from nazgul.basic_gal import BasicGal
-from nazgul.mount_doom.generate_gal_lens import GalLens
-from nazgul.mount_doom.cracks_of_doom import store_lens,_resolve_gal_path,LoadLens
+from nazgul.MountDoom.generate_gal_lens import GalLens
+from nazgul.MountDoom.cracks_of_doom import store_lens,_resolve_gal_path,LoadLens
 
 # Default values
 # particle lens class and params.
 from nazgul.pathfinder import tmp_dir
 from nazgul.configurations import pixel_num,min_thetaE
-from nazgul.mount_doom.cracks_of_doom import source_model_list,get_kwargs_sourceSim
+from nazgul.MountDoom.cracks_of_doom import source_model_list,get_kwargs_sourceSim
 
 
 verbose = True

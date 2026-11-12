@@ -9,14 +9,14 @@ from python_tools.tools import mkdir
 from python_tools.get_res import load_whatever
 
 from nazgul.Modelling.pathfinder import model_res_base
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 # LOS simulated as dependent on gal name (not z)
-from nazgul.mount_doom.fuel_tank import lensfuel_los_gal as lensfuel
+from nazgul.MountDoom.fuel_tank import lensfuel_los_gal as lensfuel
 
 from nazgul.Translator.translator import PartGal
-from nazgul.mount_doom.generate_gal_lens import GalLens
+from nazgul.MountDoom.generate_gal_lens import GalLens
 from nazgul.particle_lenses import default_kwlens_part_ASTA
-from nazgul.mount_doom.cracks_of_doom import kwargs_source_default, kw_prior_z_source_stnd
+from nazgul.MountDoom.cracks_of_doom import kwargs_source_default, kw_prior_z_source_stnd
 
 reload_SIS = False
 mask_center = True

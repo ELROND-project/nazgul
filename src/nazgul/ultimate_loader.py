@@ -11,7 +11,7 @@ from python_tools.get_res import load_whatever
 from nazgul.pathfinder import get_gal_dir
 from nazgul.Translator import std_kw_sim
 from nazgul.stat_lenses import deal_with_doubles
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.Translator.translator import PartGal,get_z_snap
 
 from nazgul.combined_modelling_results import get_res_dir,get_all_lens_model_paths

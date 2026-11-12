@@ -11,7 +11,7 @@ from python_tools.get_res import load_whatever
 from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.lib_stat import compute_tension, tau
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.combined_modelling_results import get_full_chain,get_res_dir,name_models
 

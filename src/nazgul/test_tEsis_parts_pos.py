@@ -8,7 +8,7 @@ import astropy.constants as const
 
 from nazgul.Translator.translator import PartGal,Gal2kwMXYZ
 #from nazgul.Translator.EAGLE.particle_galaxy import 
-from nazgul.mount_doom.generate_gal_lens import GalLens
+from nazgul.MountDoom.generate_gal_lens import GalLens
 
 # prev test
 from nazgul.test_vdisp import get_tE_SIS

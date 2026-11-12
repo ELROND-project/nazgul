@@ -7,7 +7,7 @@ from python_tools.tools import mkdir
 from nazgul.Modelling.pathfinder import model_res_base
 
 # LOS simulated as dependent on gal name (not z)
-from nazgul.mount_doom.fuel_tank import lensfuel_los_gal as lensfuel
+from nazgul.MountDoom.fuel_tank import lensfuel_los_gal as lensfuel
 
 res_dir_base      = model_res_base/"GEP/"
 mkdir(res_dir_base)

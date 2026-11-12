@@ -5,8 +5,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.Translator.translator import PartGal 
 from nazgul.Translator.ANL_TEST.particle_galaxy import e1,e2 
-from nazgul.mount_doom.generate_gal_lens import GalLens
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.generate_gal_lens import GalLens
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.plot_AMRxpart import plot_AMR_densityXpart
 
 from lenstronomy.LensModel.lens_model import LensModel

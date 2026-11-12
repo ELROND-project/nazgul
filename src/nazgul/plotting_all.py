@@ -8,7 +8,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.stat_lenses import get_all_gallens,get_catdir_stat
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 
 def auto_grid(n):
     ncols = np.ceil(np.sqrt(n))

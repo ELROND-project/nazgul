@@ -8,7 +8,7 @@ from lenstronomy.LensModel.lens_model import LensModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.pathfinder import std_sim
-from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.MountDoom.cracks_of_doom import LoadLens
 from nazgul.fit_iso_ell import get_kwisodens,_get_kwiso
 
 from python_tools.get_res import load_whatever
@@ -17,7 +17,7 @@ from python_tools.tools import to_dimless
 # temp. modelling path
 
 from nazgul.modelling_severals import setup_lens
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 
 def get_kappa_model(lens):
     # get the kappa map from the lens model

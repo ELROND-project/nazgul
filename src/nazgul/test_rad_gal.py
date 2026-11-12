@@ -3,7 +3,7 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 
 from nazgul.Translator.translator import PartGal
-from nazgul.mount_doom.generate_gal_lens import GalLens
+from nazgul.MountDoom.generate_gal_lens import GalLens
 from nazgul.Translator.EAGLE.sql_connect import exec_query
 def half_mass_radius(kw_data, centre=None):
     """

@@ -559,8 +559,8 @@ def get_iso_cutoff(Lens):
 
 if __name__=="__main__":
     raise RuntimeError("Outdated")
-    from nazgul.mount_doom.cracks_of_doom import LoadLens
-    from nazgul.mount_doom.lens_system import LensSystem
+    from nazgul.MountDoom.cracks_of_doom import LoadLens
+    from nazgul.MountDoom.lens_system import LensSystem
     from nazgul.modelling_wLOS import default_lens_path as lens_path
 
     # for now applied to a "known" lens galaxy
