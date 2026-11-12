@@ -18,6 +18,7 @@ from nazgul.mount_doom.generate_gal_lens import GalLens
 from nazgul.particle_lenses import default_kwlens_part_ASTA
 from nazgul.mount_doom.cracks_of_doom import kwargs_source_default, kw_prior_z_source_stnd
 
+reload_SIS = False
 mask_center = True
 gauss_tE_prior = True
 overwrite_results = True
@@ -134,7 +135,7 @@ def _create_SIS_gallens(n_smpl=n_smpl,
                        tE_in=tE_in,
                        z_lens=z_lens,
                        kw_prior_z_source=kw_prior_z_source_stnd,
-                       reload=True):
+                       reload=reload_SIS):
     SISGal = PartGal({"n_smpl":n_smpl,
                       "theta_E":tE_in,
                       "z_lens":z_lens},
@@ -154,7 +155,7 @@ def create_SIS_gallens(n_smpl=n_smpl,
                        tE_in=tE_in,
                        z_lens=z_lens,
                        kw_prior_z_source=kw_prior_z_source_stnd,
-                       reload=True):
+                       reload=reload_SIS):
     return _create_SIS_gallens(n_smpl=n_smpl,
                        kwlens_part_AS=kwlens_part_AS,
                        tE_in=tE_in,

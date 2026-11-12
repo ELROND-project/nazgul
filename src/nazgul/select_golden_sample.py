@@ -372,12 +372,13 @@ def get_golden_sample(gal_lenses,
     str_golden+="Discarded due to:\n"
     str_golden+="small thetaE, bad fit 2D isopot. map , bad drift fit, bad lens model, no lens mod., unconstr.= total discarded\n"
     str_golden+=str(n_discd_tE)+" "+str(n_discd_2D)+" "+str(n_discd_Dfit)+" "+str(n_discd_lens)+" "+str(n_discd_nml)+" "+str(n_discd_ncst)+"="+str(tot_disc)+ "\n"
-    str_golden+= str(np.round(n_discd_tE*100/tot_disc,1),"% ",
+    _str2join = [np.round(n_discd_tE*100/tot_disc,1),"% ",
           np.round(n_discd_2D*100/tot_disc,1),"% ",
           np.round(n_discd_Dfit*100/tot_disc,1),"% ",
           np.round(n_discd_lens*100/tot_disc,1),"% ",
           np.round(n_discd_nml*100/tot_disc,1),"% ",
-          np.round(n_discd_ncst*100/tot_disc,1),"% ")
+          np.round(n_discd_ncst*100/tot_disc,1),"%"]
+    str_golden+= " ".join(map(str,str2join))
     if verbose:
         print(str_golden)
         
