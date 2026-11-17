@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from chainconsumer import Chain #, ChainConsumer
+from chainconsumer import Chain, ChainConsumer,Truth
 from chainconsumer.plotting import plot_contour,plot_dist #,plot_truths
 
 from lenstronomy.Util.param_util import shear_polar2cartesian,shear_cartesian2polar,ellipticity2phi_q
@@ -532,9 +532,9 @@ def _prettify_prm(prm):
     pretty_p = r"$"+pretty_p+r"$"
     return pretty_p
 """
-def get_full_chain(lens,model,do_prettify_prm_nm=False,emcee_chain=None):
+def get_full_chain(lens,model,do_prettify_prm_nm=False,emcee_chain=None,kw_sim=std_kw_sim):
     if emcee_chain is None:
-        chnl_path = get_emcee_file(lens,model)
+        chnl_path = get_emcee_file(lens,model,kw_sim=kw_sim)
         emcee_chain = load_whatever(chnl_path)
         sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
     param_mcmc = np.array(param_mcmc)
@@ -579,6 +579,81 @@ def get_partial_chain(lens,model,wanted_param_list,do_prettify_prm_nm=False,emce
     del mc_sample,mc_partial,emcee_chain
     return partial_chain
     
+def show_contour_post_2(chain,param1,param2,kw_truths={}):
+    """
+    Special case for only 2 params as it's faster
+    """
+    param1,param2 = prettify_prm([param1,param2])
+    fig,ax = plt.subplots(2,2)#,sharex=True,sharey=True)
+    # Remove vertical space between Axes
+    fig.subplots_adjust(hspace=0,wspace=0)
+    plot_contour(ax[1][0], chain, px=param1, py=param2)
+
+    plot_dist(ax[0][0],chain, px=param1)
+    
+    plot_dist(ax[1][1],chain, px=param2)
+    if kw_truths:
+        true1 = kw_truths.get(param1)
+        true2 = kw_truths.get(param2)
+        if true1 is not None:
+            ax[0][0].axvline(true1,ls="--",c="k",label=param1+r"$_{\rm{,\,Truth}}$="+str(np.round(true1,2)))
+            ax[1][0].axvline(true1,ls="--",c="k")
+            ax[0][0].legend()
+        if true2 is not None:
+            ax[1][1].axvline(true2,ls="--",c="k",label=param2+r"$_{\rm{,\,Truth}}$="+str(np.round(true2,2)))
+            ax[1][0].axhline(true2,ls="--",c="k")
+            ax[1][1].legend()
+    lim_p1 = ax[1][0].get_xlim()
+    lim_p2 = ax[1][0].get_ylim()
+    ax[0][0].set_xlim(*lim_p1)
+    ax[1][1].set_xlim(*lim_p2)
+
+    ax[1][1].set_yticks([])
+    ax[0][0].set_title(param1)
+    ax[0][0].set_xticks([])
+    ax[1][0].set_ylabel(param2)
+    ax[1][0].set_xlabel(param1)
+    ax[1][1].set_xlabel(param2)
+    ax[1][1].set_title(param2)
+    ax[0][1].remove()
+    return fig
+
+def show_contour_post(chain,param_list,kw_truths={}):
+    c = ChainConsumer()
+    c.add_chain(chain)
+    if kw_truths:
+        limited_truth = {}
+        for kw in chain.data_columns:
+            if kw in kw_truths.keys():
+                limited_truth[kw] = float(kw_truths[kw])
+        c.add_truth(Truth(location=limited_truth,line_style="--",color="k"))
+        # Verify Truths are within range of plotting
+        extents = {}
+        for kw in limited_truth.keys():
+            _truth = limited_truth[kw]
+            _arr = chain.data_samples[kw].array
+            min_arr = _arr.min()
+            max_arr = _arr.max()
+            Darr = max_arr-min_arr
+            padd = Darr/10
+            if _truth<min_arr:
+                extents[kw] = (_truth-padd,max_arr)
+            if _truth>max_arr:
+                extents[kw] = (min_arr,_truth+padd)  
+        print(extents)
+        c.plotter.config.extents=extents
+    fig = c.plotter.plot()
+    axes = fig.get_axes()
+    axi = axes[int(len(axes)**.5)-1]
+    if kw_truths:
+        for kw in limited_truth:
+            axi.axvline(0,label= kw +"="+str(np.round(limited_truth[kw],2)),ls="--",color="k")
+    fig.legend()
+    axi.remove()
+
+    #fig.savefig("tmp/del.pdf")
+    return fig
+
 import re
 
 # lenstronomy-style suffixes that denote "which object" a parameter belongs to,
@@ -852,7 +927,7 @@ mod_pth = path_nazgul/"Modelling"
 prog_name_models = [str(mod.name).replace("model_","").replace(".py","") for mod in mod_pth.glob("model_*py")]
 
 
-name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS","GEP","GEP_ellexp"]
+name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS","GEP","GEP_ellexp","testSIS_freegOD"]
 
 kw_names_models = {}
 for nm in name_models:

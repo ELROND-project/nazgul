@@ -433,11 +433,14 @@ def wrapper_forge_all_lenses(reload=True,
                 try:
                     log_memory(f"before GalLens run {Gal_name}")
                     mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
+                    if Path(mod_LP.pkl_path).is_file() and reload and not debug:
+                        # We should skip already computed galaxies
+                        raise ProjectionError("GalLens already present - skipping")
                     workin_dir = mod_LP.pkl_path.parent
                     if check_if_workin_on_it:
                         if is_someone_workin_on_it(workin_dir):
-                            warnings.warn(f"This gal, {mod_LP.name} is being worked on, skipping - if not, delete the WOI.dll file:\n{workin_dir}/WOI.dll") 
-                            raise ProjectionError()  
+                            #warnings.warn(
+                            raise ProjectionError(f"This gal, {mod_LP.name} is being worked on, skipping - if not, delete the WOI.dll file:\n{workin_dir}/WOI.dll") # not great but it has to be a projection error to make it skip the correct way
                     set_workin_on_it(workin_dir,wrk = True)
 
                     mod_LP.run(read_prev=reload)
@@ -461,14 +464,16 @@ def wrapper_forge_all_lenses(reload=True,
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")
                         break
+                    # finished workin on it, reset label
+                    set_workin_on_it(workin_dir,wrk = False)
                 except ProjectionError as PE:
                     if mod_LP is not None:
                         del mod_LP
                     gc.collect()
                     strikes+=1
+                
                 kw_lenspart["projection_index"]+=1
                 # re-set WOI to false
-                set_workin_on_it(workin_dir,wrk = False)
             if strikes==3:
                 print(f"All projections of Galaxy {Gal_name} are not supercritical")
             print("Next galaxy.")

@@ -159,7 +159,10 @@ class LensSystem(BasicGal):
 
     def save_truths(self):
         # save theta_E, kwargs_source and eventual kwargs_add_lenses
+        # note: the lens is centred in 0,0
         kw_truths = {"theta_E_lens0":     self.gallens.thetaE.value,
+                     "center_x_lens0":    0, 
+                     "center_y_lens0":    0,
                      "kwargs_source":     self.kwargs_source,
                      "kwargs_add_lenses": self.kwargs_add_lenses}
         

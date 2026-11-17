@@ -3,7 +3,7 @@ from copy import copy,deepcopy
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from chainconsumer import Chain ,ChainConsumer,Truth
+from chainconsumer import Chain ,ChainConsumer
 from chainconsumer.plotting import plot_contour,plot_dist #,plot_truths
 
 from python_tools.tools import mkdir
@@ -15,7 +15,7 @@ from nazgul.lib_plot import circle
 from nazgul.lib_stat import compute_tension,tension_multidim
 from nazgul.isocont_stat import get_DPA, get_xi_tE
 from nazgul.isocont_stat_plots import _pretty_iso_name,fit_isofit,plot_fit_iso,_plot_fit_iso
-from nazgul.combined_modelling_results import get_lensfuel,get_full_chain,get_partial_chain,prettify_prm,get_emcee
+from nazgul.combined_modelling_results import get_lensfuel,get_full_chain,get_partial_chain,prettify_prm,get_emcee,show_contour_post_2,show_contour_post
 from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot,plot_modelplot_massmodel
 from nazgul.Modelling.pathfinder import get_res_dir
 from nazgul.pathfinder import results_dir
@@ -186,46 +186,14 @@ class ProfileLens:
         """
         Special case for only 2 params as it's faster
         """
-        param1,param2 = prettify_prm([param1,param2])
         if full_chain is None:
             full_chain = self.get_full_chain(reload=reload)
         chain = self.get_Chain(full_chain,reload=reload)
         if chain is None:
             warnings.warn("No lens model results found")
             return 0
-        fig,ax = plt.subplots(2,2)#,sharex=True,sharey=True)
-        # Remove vertical space between Axes
-        fig.subplots_adjust(hspace=0,wspace=0)
-        plot_contour(ax[1][0], chain, px=param1, py=param2)
-    
-        plot_dist(ax[0][0],chain, px=param1)
-        
-        plot_dist(ax[1][1],chain, px=param2)
-        
-        true1 = self.lens_system.kw_truths.get(param1)
-        true2 = self.lens_system.kw_truths.get(param2)
-        if true1 is not None:
-            ax[0][0].axvline(true1,ls="--",c="k",label=param1+r"$_{\rm{,\,Truth}}$="+str(np.round(true1,2)))
-            ax[1][0].axvline(true1,ls="--",c="k")
-            ax[0][0].legend()
-        if true2 is not None:
-            ax[1][1].axvline(true2,ls="--",c="k",label=param2+r"$_{\rm{,\,Truth}}$="+str(np.round(true2,2)))
-            ax[1][0].axhline(true2,ls="--",c="k")
-            ax[1][1].legend()
-        lim_p1 = ax[1][0].get_xlim()
-        lim_p2 = ax[1][0].get_ylim()
-        ax[0][0].set_xlim(*lim_p1)
-        ax[1][1].set_xlim(*lim_p2)
-
-        ax[1][1].set_yticks([])
-        ax[0][0].set_title(param1)
-        ax[0][0].set_xticks([])
-        ax[1][0].set_ylabel(param2)
-        ax[1][0].set_xlabel(param1)
-        ax[1][1].set_xlabel(param2)
-        ax[1][1].set_title(param2)
-        ax[0][1].remove()
-        return fig
+        kw_truths = self.lens_system.kw_truths
+        return show_contour_post_2(chain,param1,param2,kw_truths=kw_truths)
 
     def get_partial_chain(self,param_list):
         if self.lens_system.model_res_dir is None:
@@ -245,38 +213,9 @@ class ProfileLens:
         if chain is None:
             warnings.warn("No lens model results found")
             return 0
-        c = ChainConsumer()
-        c.add_chain(chain)
-        limited_truth = {}
-        for kw in chain.data_columns:
-            if kw in self.lens_system.kw_truths.keys():
-                limited_truth[kw] = float(self.lens_system.kw_truths[kw])
-        c.add_truth(Truth(location=limited_truth,line_style="--",color="k"))
-        # Verify Truths are within range of plotting
-        extents = {}
-        for kw in limited_truth.keys():
-            _truth = limited_truth[kw]
-            _arr = chain.data_samples[kw].array
-            min_arr = _arr.min()
-            max_arr = _arr.max()
-            Darr = max_arr-min_arr
-            padd = Darr/10
-            if _truth<min_arr:
-                extents[kw] = (_truth-padd,max_arr)
-            if _truth>min_arr:
-                extents[kw] = (min_arr,_truth+padd)         
-        c.plotter.config.extents=extents
-        fig = c.plotter.plot()
-        axes = fig.get_axes()
-        axi = axes[int(len(axes)**.5)-1]
-        
-        for kw in limited_truth:
-            axi.axvline(0,label= kw +"="+str(np.round(limited_truth[kw],2)),ls="--",color="k")
-        fig.legend()
-        axi.remove()
+        kw_truths = self.lens_system.kw_truths
+        return show_contour_post(chain,param_list,kw_truths=kw_truths)
 
-        #fig.savefig("tmp/del.pdf")
-        return fig
         
     @property
     def modelPlot(self):
@@ -556,8 +495,9 @@ def _prettify_truth(kw_truths):
 def _standardise_truths(kw_truths,pretty=True):
     #Very ad-hoc solution
     kw_stnd_truths = {}
+    _ln_prms = ["theta_E_lens0","center_x_lens0","center_y_lens0"]
     for k in kw_truths:
-        if k=="theta_E_lens0":
+        if k in _ln_prms:
             kw_stnd_truths[k] = kw_truths[k]
         elif k=="kwargs_source":
             for kk in kw_truths[k]:
@@ -568,8 +508,13 @@ def _standardise_truths(kw_truths,pretty=True):
                 for kk in kl:
                     kw_stnd_truths[kk+"_lens"+str(i+1)] = kl[kk]
         else:
-            raise RuntimeError("this truth was not standardised")
+            raise RuntimeError(f"{k}: this truth was not standardised")
+
+    # MONKEY PATCH:
+    if not "center_x_lens0" in kw_truths:
+        kw_stnd_truths["center_x_lens0"] = 0
+    if not "center_y_lens0" in kw_truths:
+        kw_stnd_truths["center_y_lens0"] = 0
     if pretty:
         kw_stnd_truths = _prettify_truth(kw_stnd_truths)
     return kw_stnd_truths
-            
