@@ -131,7 +131,8 @@ class Band_HST_F160W(BasicBand):
             "psf_type":"PIXEL",
             "kernel_point_source": psf_res,
             "kernel_point_source_normalisation":True,
-            "point_source_supersampling_factor": pssf_effective
+            "point_source_supersampling_factor": pssf_effective,
+            #'pixel_size':delta_pix_band/pssf_effective, -> verify
         }
         return kwargs_psf
 
@@ -246,6 +247,20 @@ class Band_HST_noPSF(BasicBand):
         self.obs = kwargs_obs
         self.kwargs_psf = {"psf_type":"NONE"}
 
-
+from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
+class Band_HST_optimistic(BasicBand):
+    hst = HST(band="WFC3_F160W",
+              psf_type="GAUSSIAN")
+    fwhm = 0.08 #arcsec
+    hst.obs["seeing"] = 0.08
+    def __init__(self):
+        self.obs = self.hst.obs
+        self.camera = self.hst.camera
+        
+        self.kwargs_single_band = self.hst.kwargs_single_band
+        self.kwargs_psf = {"psf_type":self.hst.obs["psf_type"],
+                           "truncation":5,
+                           "fwhm":self.fwhm}
 # Std band:
 std_band_obs = Band_HST_F160W()
+band_obs_optimistic = Band_HST_optimistic()

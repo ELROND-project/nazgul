@@ -50,3 +50,9 @@ def get_kw_los_gal(gallens,kwargs_add_lenses=empty_kwargs_add_lenses):
 lensfuel_los_gal = LensFuel("LOSGal",
                             get_kw_add_lenses=get_kw_los_gal)
 
+
+from nazgul.ObsData.band import band_obs_optimistic
+lensfuel_los_gal_optimistic_band = LensFuel("LOSGal_optimisticObs",
+                                            band_obs = band_obs_optimistic,
+                                            get_kw_add_lenses=get_kw_los_gal)
+
