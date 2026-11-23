@@ -158,7 +158,7 @@ def _get_dens(samples):
         dens[dens<=0] = 1e-12 
     return dens
     
-def adaptive_tcAS(thetaEs,samples,kw_adaptive):
+def adaptive_tcAS(samples,kw_adaptive):
     types = ["SIS","NDENS"]
     if kw_adaptive["type"]=="SIS":
         theta_max     = kw_adaptive["theta_max"]
@@ -193,8 +193,7 @@ def get_lens_prof_AS(theta_cAS,thetaEs,samples):
     return kwargs_lens_AS,lens_prof_AS
     
 def get_lens_prof_AS_adaptive(thetaEs,samples,kw_adaptive):
-    theta_cASs = adaptive_tcAS(thetaEs=thetaEs,
-                               samples=samples,
+    theta_cASs = adaptive_tcAS(samples=samples,
                                kw_adaptive=kw_adaptive)
     return get_lens_prof_AS(theta_cASs,thetaEs,samples)
     
