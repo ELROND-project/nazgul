@@ -152,8 +152,9 @@ kwargs_model = {'lens_model_list': lens_model_list,
                 'source_light_model_list': source_model_list}
 
 # the mask is tricky to reproduce, we simply load it form prev. model testSIS_freeOG_optimisticObs
-
-kw_in = load_whatever("/cosma/home/do019/dc-quei1/nazgul/src/nazgul/results/models/testSIS_freeOG_optimisticObs/ANLT_SIS/snap_0_LS_Lens_TEST_GAL_SIS_tE1.5_nS1.00e+07_Prj0/kw_input.dll")
+from nazgul.configurations import nazgul_path
+#kw_input_for_testSIS.dll -> results/models/testSIS_freeOG_optimisticObs/ANLT_SIS/snap_0_LS_Lens_TEST_GAL_SIS_tE1.5_nS1.00e+07_Prj0/kw_input.dll
+kw_in = load_whatever(nazgul_path/"tmp/kw_input_for_testSIS.dll")
 kwargs_likelihood = kw_in["kwargs_likelihood"]
 
 kw_prms_lens_init = [{'theta_E': 1.7,
@@ -185,7 +186,7 @@ kw_prms_lens_max = [{'theta_E': np.float64(4.379109991947686),
     'gamma2_los': 0.5,
     'gamma1_od': 0.5,
     'gamma2_od': 0.5,
-    'omega_los': 0.002}]]
+    'omega_los': 0.002}]
 
 kw_params_lens = kw_prms_lens_init,kw_prms_lens_sigma,kw_prms_lens_fix,kw_prms_lens_min,kw_prms_lens_max
 
