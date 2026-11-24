@@ -608,16 +608,29 @@ def show_contour_post_2(chain,param1,param2,kw_truths={}):
     ax[0][0].set_xlim(*lim_p1)
     ax[1][1].set_xlim(*lim_p2)
 
+    
+
     ax[1][1].set_yticks([])
-    ax[0][0].set_title(param1)
+    ax[0][0].set_title(param1+":"+_get_str_prm(chain,param1))
     ax[0][0].set_xticks([])
     ax[1][0].set_ylabel(param2)
     ax[1][0].set_xlabel(param1)
     ax[1][1].set_xlabel(param2)
-    ax[1][1].set_title(param2)
+    ax[1][1].set_title(param2+":"+_get_str_prm(chain,param2))
     ax[0][1].remove()
     return fig
 
+def _get_str_prm(chain,param_name):
+    """
+    Return strings of median+-0.34sigma
+    """
+    min_prm,med_prm,max_prm = np.quantile(chain.data_samples[param_name].array,q=[.16,0.5,.84])
+    sigmax_prm,sigmin_prm = max_prm-med_prm,med_prm-min_prm
+    str_val_prm = str(short_SciNot(med_prm))
+    str_sigmax_prm = str(short_SciNot(sigmax_prm))
+    str_sigmin_prm = str(short_SciNot(sigmin_prm))
+    return str_val_prm+r"$^{+"+str_sigmax_prm+r"}_{-"+str_sigmin_prm+r"}$"
+    
 def show_contour_post(chain,param_list,kw_truths={}):
     c = ChainConsumer()
     c.add_chain(chain)
