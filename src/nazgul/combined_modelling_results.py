@@ -536,7 +536,7 @@ def get_full_chain(lens,model,do_prettify_prm_nm=False,emcee_chain=None,kw_sim=s
     if emcee_chain is None:
         chnl_path = get_emcee_file(lens,model,kw_sim=kw_sim)
         emcee_chain = load_whatever(chnl_path)
-        sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
+    sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
     param_mcmc = np.array(param_mcmc)
     if model == "noLOS" or "noLOS" in model:
         mc_sample,param_mcmc = _convert_shear2LOS(mc_sample,param_mcmc)
@@ -640,7 +640,7 @@ def show_contour_post(chain,param_list,kw_truths={}):
                 extents[kw] = (_truth-padd,max_arr)
             if _truth>max_arr:
                 extents[kw] = (min_arr,_truth+padd)  
-        print(extents)
+        #print(extents)
         c.plotter.config.extents=extents
     fig = c.plotter.plot()
     axes = fig.get_axes()
@@ -927,7 +927,7 @@ mod_pth = path_nazgul/"Modelling"
 prog_name_models = [str(mod.name).replace("model_","").replace(".py","") for mod in mod_pth.glob("model_*py")]
 
 
-name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS","GEP","GEP_ellexp","testSIS_freegOD"]
+name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmegaLos","simNoShear","SNS_multipole","SNS_m134_gausstE","SNS_DCE","SNS_DCE_noLOS","DCE","EPL","EPL_m4","EPL_m134","DCE_noCntMsk","testSIS","testSIS_noLOS","GEP","GEP_ellexp","testSIS_freegOD","testSIS_freegOD_optimisticObs"]
 
 kw_names_models = {}
 for nm in name_models:

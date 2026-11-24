@@ -20,7 +20,6 @@ from nazgul.MountDoom.generate_gal_lens import GalLens
 from nazgul.particle_lenses import default_kwlens_part_ASTA
 from nazgul.MountDoom.cracks_of_doom import kwargs_source_default, kw_prior_z_source_stnd
 
-reload_SIS = True
 mask_center = True
 gauss_tE_prior = True
 overwrite_results = True

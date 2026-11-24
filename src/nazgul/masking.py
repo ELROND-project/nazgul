@@ -62,22 +62,7 @@ def mask_SEAGLE_old(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25
         warnings.warn("mask_SEAGLE: Masking nothing")
     return mask
 
-def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked=.25):
-    # note : default parameters adapted for EAGLE RefL0050N0752
-    # yet another approach - fwhm is adapted to the image size
-    """Mask the image following SEAGLE approach:
-        SEAGLE_I, Section 3.5:
-        "convolving the noisy lensed images with a
-        Gaussian with a FWHM of 0.25 arcsec to reduce the noise
-        and smear the images to a slightly larger footprint. We then
-        set a surface brightness threshold for the mask being a fac-
-        tor of typically 2.5–5 below the original noise. Pixels above
-        the threshold are set to one and all others to zero."
-        We don't define the threshold, but the minimum percentage of unmasked
-        pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
-    """
-    if image is None:
-        image = lens.image_true
+def _mask_SEAGLE(image,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked=.25):
     fwhm_pix = image.shape[0]*fwhm_pix_perc/100
     filt_img = ndimage.gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
@@ -99,6 +84,24 @@ def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked
     elif perc_not_masked==1:
         warnings.warn("mask_SEAGLE: Masking nothing")
     return mask
+
+def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked=.25):
+    # note : default parameters adapted for EAGLE RefL0050N0752
+    # yet another approach - fwhm is adapted to the image size
+    """Mask the image following SEAGLE approach:
+        SEAGLE_I, Section 3.5:
+        "convolving the noisy lensed images with a
+        Gaussian with a FWHM of 0.25 arcsec to reduce the noise
+        and smear the images to a slightly larger footprint. We then
+        set a surface brightness threshold for the mask being a fac-
+        tor of typically 2.5–5 below the original noise. Pixels above
+        the threshold are set to one and all others to zero."
+        We don't define the threshold, but the minimum percentage of unmasked
+        pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
+    """
+    if image is None:
+        image = lens.image_true
+    return _mask_SEAGLE(image,fwhm_pix_perc=fwhm_pix_perc,sig_clip=sig_clip,min_perc_not_masked=min_perc_not_masked)
 
 def mask_max_dens(lens,image=None,rad=0.15):
     """
