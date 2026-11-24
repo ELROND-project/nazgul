@@ -40,7 +40,7 @@ check_if_workin_on_it = False
 res_dir_base      = model_res_base/"testSIS_fODoO_hack2_1_mvS_LargerGamma/"
 mkdir(res_dir_base)
 
-description_model = "Try to model a single SIS w LOS, and model the lens with EPL +LOS minimal (with free gamma OD and omega LOS), and an elliptical sersic source - now with fixed lens pos - and Optimistic Observation (def. lnstr. HST band) - hacked II: use lenstronomy to produce the image, not nazgul - now without any ref. to nazgul - and move the source. Now w. Larger Gamma LOS values"
+description_model = "Try to model a single SIS w LOS, and model the lens with EPL +LOS minimal (with free gamma OD and omega LOS), and an elliptical sersic source - now with fixed lens pos - and Optimistic Observation (def. lnstr. HST band) - hacked II: use lenstronomy to produce the image, not nazgul - now without any ref. to nazgul - and move the source. Now w. Larger Gamma LOS values. Now sim. gamma od/ds = 0, so it's basically==ext shear"
 lens_model_list   = ['SIS','LOS_MINIMAL']
 source_model_list = ["SERSIC_ELLIPSE"]
 
@@ -54,9 +54,9 @@ from astropy.cosmology import Planck13 as cosmo
 z_source = 1.0556582737985163
 kw_add_lenses = [{'kappa_od': 0, 'kappa_os': 0, 'kappa_ds': 0,
               'omega_od': 0, 'omega_os': 0, 'omega_ds': 0,
-              'gamma1_od':  0.01, 'gamma2_od': 0.02,
-              'gamma1_os':  0.0, 'gamma2_os': 0.01,
-              'gamma1_ds':  0.04, 'gamma2_ds': -0.01}]
+              'gamma1_od':  0.0, 'gamma2_od': 0.0,
+              'gamma1_os':  0.03, 'gamma2_os': 0.01, # not 1:1 to prev. because if not it was too small
+              'gamma1_ds':  0.0, 'gamma2_ds': 0.0}]
 kw_lens_true = [{"theta_E":tE_in,
                  "center_x":0,
                  "center_y":0},
@@ -154,21 +154,18 @@ kw_prms_lens_init = [{'theta_E': 1.7,
    {'gamma1_los': 0,
     'gamma2_los': 0,
     'gamma1_od': 0.0,
-    'gamma2_od': 0.0,
-    'omega_los': 0.0}]
+    'gamma2_od': 0.0}]
 kw_prms_lens_sigma = [{'theta_E': 0.3, 'center_x': 0.1, 'center_y': 0.1},
    {'gamma1_los': 0.1,
     'gamma2_los': 0.1,
     'gamma1_od': 0.1,
-    'gamma2_od': 0.1,
-    'omega_los': 0.0005}]
-kw_prms_lens_fix = [{}, {'kappa_od': 0.0, 'kappa_los': 0.0, 'omega_od': 0.0}]
+    'gamma2_od': 0.1}]
+kw_prms_lens_fix = [{}, {'kappa_od': 0.0, 'kappa_los': 0.0, 'omega_od': 0.0,"omega_los":0.0}]
 kw_prms_lens_min = [{'theta_E': 0.0, 'center_x': -10.0, 'center_y': -10.0},
    {'gamma1_los': -0.5,
     'gamma2_los': -0.5,
     'gamma1_od': -0.5,
-    'gamma2_od': -0.5,
-    'omega_los': -0.002}]
+    'gamma2_od': -0.5}]
 
 kw_prms_lens_max = [{'theta_E': np.float64(4.379109991947686),
     'center_x': 10.0,
@@ -176,8 +173,7 @@ kw_prms_lens_max = [{'theta_E': np.float64(4.379109991947686),
    {'gamma1_los': 0.5,
     'gamma2_los': 0.5,
     'gamma1_od': 0.5,
-    'gamma2_od': 0.5,
-    'omega_los': 0.002}]
+    'gamma2_od': 0.5}]
 
 kw_params_lens = kw_prms_lens_init,kw_prms_lens_sigma,kw_prms_lens_fix,kw_prms_lens_min,kw_prms_lens_max
 
