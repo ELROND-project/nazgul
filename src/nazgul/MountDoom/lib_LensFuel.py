@@ -19,8 +19,9 @@ str_class = "LF_"
 
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
 
-def empty_get_kw_add_lenses(gallens,kwargs_add_lenses=None):
-    return empty_kwargs_add_lenses
+# 
+#def empty_get_kw_add_lenses(*args,**kwargs):
+#    return empty_kwargs_add_lenses
 
 # eg: lens_fuel_LOS = LensFuel("LOS",get_kw_add_lenses=los_kw_add)
 class LensFuel(BasicClass):
@@ -30,8 +31,8 @@ class LensFuel(BasicClass):
                  band_true=std_band_true,
                  source_model_list=std_source_model_list,
                  kwargs_source_init=std_kwargs_source_init, 
-                 kwargs_add_lenses=empty_kwargs_add_lenses,
-                 get_kw_add_lenses=empty_get_kw_add_lenses
+                 kwargs_add_lenses=None,
+                 get_kw_add_lenses=None
                  ):
         self.name               = str_class+str(name)
         self.source_model_list  = source_model_list
@@ -40,7 +41,13 @@ class LensFuel(BasicClass):
         self.kwargs_source_init = kwargs_source_init
         # these are the initial values before getting updated w get_kw_add_lenses 
         # wich might depend on the lens system
-        self.kwargs_add_lenses_init  = kwargs_add_lenses
+        if kwargs_add_lenses is None:
+            kwargs_add_lenses = empty_kwargs_add_lenses
+        self.kwargs_add_lenses_init = kwargs_add_lenses
+        if get_kw_add_lenses is None:
+            # default: ignore gallens/kwargs_add_lenses, return the constant init kwargs
+            def get_kw_add_lenses(gallens, kwargs_add_lenses=None):
+                return self.kwargs_add_lenses_init
         self.get_kw_add_lenses = get_kw_add_lenses
         # Observations properties tied to the 
         self.band_true         = band_true  #this need to be updated with the correct pixel scale dep. on lens
