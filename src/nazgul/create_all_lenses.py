@@ -1,7 +1,7 @@
 # Script to sistematically create all available GL 
 import numpy as np
 import warnings
-from nazgul.mount_doom.generate_gal_lens import wrapper_forge_all_lenses
+from nazgul.MountDoom.generate_gal_lens import wrapper_forge_all_lenses
 
 run_profiler = False
 if run_profiler:

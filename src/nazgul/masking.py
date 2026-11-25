@@ -1,15 +1,16 @@
 import warnings
 import numpy as np
+from scipy import ndimage
 from astropy.stats import sigma_clip
 from matplotlib.colors import ListedColormap
-from scipy.ndimage import zoom,gaussian_filter
 
 from python_tools.tools import to_dimless
 from python_tools.image_manipulation import mask_in, mask_out
-
-
-def masking_thetaE(lens):
+    
+def masking_thetaE(lens,image=None):
     raise RuntimeError("Deprecated")
+    if image is None:
+        image = lens.image_true
     # we want to mask everything apart the thetaE 
     tE  = to_dimless(lens.thetaE) #arcsec
     # rad = 2thetaE
@@ -38,9 +39,32 @@ def mask_SEAGLE_old(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25
         pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
-    filt_img = gaussian_filter(image,sigma=fwhm_pix)
+    filt_img = ndimage.gaussian_filter(image,sigma=fwhm_pix)
+    # compute the threshold from the noise
+    sgc = sigma_clip(image,sigma=sig_clip)        
+    msk_sky = np.invert(sgc.mask)
+    # optimise the noise threshold
+    Npix = np.shape(image)[0]*np.shape(image)[1]
+    for threshold_scale in np.linspace(5,1,30):
+        threshold = threshold_scale*np.median(msk_sky*image)
+    
+        mask     = np.ones_like(image)
+        mask[np.where(filt_img<threshold)] = 0
+    
+        perc_not_masked = np.sum(mask)/Npix
+        if perc_not_masked>min_perc_not_masked:
+            break
+    if perc_not_masked==0:
+        raise RuntimeError("mask_SEAGLE: Masking everything")
+    elif perc_not_masked==1:
+        warnings.warn("mask_SEAGLE: Masking nothing")
+    return mask
+
+def _mask_SEAGLE(image,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked=.25):
+    fwhm_pix = image.shape[0]*fwhm_pix_perc/100
+    filt_img = ndimage.gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
     sgc = sigma_clip(image,sigma=sig_clip)        
     msk_sky = np.invert(sgc.mask)
@@ -76,35 +100,15 @@ def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked
         pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
     """
     if image is None:
-        image = lens.image_sim
-    fwhm_pix = image.shape[0]*fwhm_pix_perc/100
-    filt_img = gaussian_filter(image,sigma=fwhm_pix)
-    # compute the threshold from the noise
-    sgc = sigma_clip(image,sigma=sig_clip)        
-    msk_sky = np.invert(sgc.mask)
-    # optimise the noise threshold
-    Npix = np.shape(image)[0]*np.shape(image)[1]
-    for threshold_scale in np.linspace(5,1,30):
-        threshold = threshold_scale*np.median(msk_sky*image)
-    
-        mask     = np.ones_like(image)
-        mask[np.where(filt_img<threshold)] = 0
-    
-        perc_not_masked = np.sum(mask)/Npix
-        if perc_not_masked>min_perc_not_masked:
-            break
-    if perc_not_masked==0:
-        raise RuntimeError("mask_SEAGLE: Masking everything")
-    elif perc_not_masked==1:
-        warnings.warn("mask_SEAGLE: Masking nothing")
-    return mask
+        image = lens.image_true
+    return _mask_SEAGLE(image,fwhm_pix_perc=fwhm_pix_perc,sig_clip=sig_clip,min_perc_not_masked=min_perc_not_masked)
 
 def mask_max_dens(lens,image=None,rad=0.15):
     """
     mask the densest coord of the lens (~center)
     """
     if not image:
-        image = lens.image_sim
+        image = lens.image_true
     # by construction recentered around densest point
     cx,cy = np.array(image.shape)/2.
     # for some reason this might be a bit off -> take the maximum density
@@ -123,7 +127,7 @@ def mask_center(lens,image=None,rad=0.15):
     mask the centre of the lens
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     # by construction recentered around densest point
     cx,cy = lens.pixel_num/2.,lens.pixel_num/2.
     
@@ -145,7 +149,7 @@ def resize_mask(mask,target_image):
             raise RuntimeError("The image and masks needs to be square")
             
     scaling = target_image.shape[0]/mask.shape[0]
-    mask_rescaled = zoom(mask,scaling,order=3)
+    mask_rescaled = ndimage.zoom(mask,scaling,order=3)
     mask_rescaled[np.where(mask_rescaled>=0.5)] = 1
     mask_rescaled[np.where(mask_rescaled<0.5)]  = 0
     return mask_rescaled
@@ -155,7 +159,7 @@ def mask_bright_center(lens,image=None,rad_pix=10):
     re-centre the mask around the brightest pixel
     """
     if image is None:
-        image = lens.image_sim
+        image = lens.image_true
     mask_cent = mask_center(lens,image=image,rad=5*lens.deltaPix)
     # find brightest pixel within the mask
     masked_part = invert_mask(mask_cent)*image
@@ -164,7 +168,7 @@ def mask_bright_center(lens,image=None,rad_pix=10):
     # to define the mask (ie no noise)
     fwhm = 0.7
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
-    filt_masked = gaussian_filter(masked_part,sigma=fwhm_pix)
+    filt_masked = ndimage.gaussian_filter(masked_part,sigma=fwhm_pix)
     ymax,xmax   = np.where(filt_masked==np.max(filt_masked))
     # consider the first one
     xmax = xmax[0]
@@ -188,3 +192,13 @@ def overplot_mask(ax,mask,alpha=.3):
     mask = np.array(mask,dtype=int)
     ax.imshow(mask,cmap=white_mask_cmap(alpha),vmin=0, vmax=1)
     return ax
+
+# thanks to Claude
+def grow_mask(mask,n=1):
+    "Expand mask by n neighbooring pixels"
+    # invert mask
+    mask = invert_mask(mask)
+    grown_mask = ndimage.binary_dilation(mask, structure=ndimage.generate_binary_structure(2, 2), iterations=n)  # 8-connected -> square
+    # re - invert mask
+    grown_mask = invert_mask(grown_mask)
+    return grown_mask

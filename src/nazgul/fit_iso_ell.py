@@ -1,5 +1,3 @@
-# for some reason it was not able to fit anymore- 
-# corrected for it by pre-fitting, 
 import dill
 import warnings
 import numpy as np
@@ -561,9 +559,9 @@ def get_iso_cutoff(Lens):
 
 if __name__=="__main__":
     raise RuntimeError("Outdated")
-    from nazgul.mount_doom.cracks_of_doom import LoadLens
-    from nazgul.mount_doom.lens_system import LensSystem
-    from nazgul.Modelling.modelling_sis_sie import default_lens_path as lens_path
+    from nazgul.MountDoom.cracks_of_doom import LoadLens
+    from nazgul.MountDoom.lens_system import LensSystem
+    from nazgul.Modelling.modelling_wLOS import default_lens_path as lens_path
 
     # for now applied to a "known" lens galaxy
     gal_lens = LoadLens(lens_path)

@@ -12,7 +12,7 @@ from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 
 from nazgul.basic_gal import BasicGal,store_class
-from nazgul.pathfinder import path_nazgul, std_data_dir
+from nazgul.std_path import path_nazgul, std_data_dir
 
 class BasicPartGal(BasicGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class

@@ -10,7 +10,7 @@ from pathlib import Path
 from functools import cached_property 
 
 import astropy.units as u
-from scipy.ndimage import zoom
+from scipy.ndimage import zoom,map_coordinates
 from scipy.interpolate import splprep, splev, RectBivariateSpline
 
 from lenstronomy.Util import util
@@ -19,9 +19,12 @@ from lenstronomy.SimulationAPI.sim_api import SimAPI
 
 # My libs
 from python_tools.get_res import LoadClass
+from python_tools.conversion import find_index
 from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
+
 # general path
 from nazgul.pathfinder import path_nazgul, std_data_dir
+from nazgul.ObsData.band import BasicBand
 
 def _resolve_gal_path(stored_path,data_dir=std_data_dir):
     """Translate a stored Gal_path to an absolute path on this machine.
@@ -64,16 +67,6 @@ from nazgul.project_gal import ProjGal,ProjectionError,project_Gal
 #Default values
 import nazgul.configurations as conf
 
-# Path definitions:
-# define where to store the obtained lenses classes
-std_sim_lens_path   = path_nazgul/"sim_lens/"
-
-def get_lens_dir(Gal,sim_lens_path=std_sim_lens_path):
-    lens_dir = Path(sim_lens_path)/Gal.sim/f"snap{Gal.snap}_G{Gal.Gn}.{Gal.SGn}"
-    mkdir(lens_dir)
-    Gal.lens_dir = lens_dir
-    return lens_dir
-
 ##########################
 ##########################
 # Sampling of the Profiles
@@ -81,7 +74,8 @@ def get_lens_dir(Gal,sim_lens_path=std_sim_lens_path):
 ##########################
 
 # source parametrisation
-kwargs_sersic_ellipse_basic = {'R_sersic': .1, 'n_sersic': 3, 
+kwargs_sersic_ellipse_basic = {'R_sersic':.5,  
+                            'n_sersic': 1.5, 
                             'center_x': 0,
                             'center_y': 0, 
                             'e1': 0.0, 
@@ -94,11 +88,15 @@ kwargs_source_default     = kwargs_sersic_ellipse_abs_mag
 source_model_list         = ['SERSIC_ELLIPSE']
 
 def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
+    """
+    Convert (abs) magnitude in amplitude 
+    """
     if kwargs_source is None:
         if lens is None:
             kwargs_source = kwargs_source_default
         else:
             kwargs_source = lens.kwargs_source_def
+    kwargs_source = dict(kwargs_source)
     if "abs_magnitude" in kwargs_source.keys():
         # convert absolute magnitude in apparent
         Mag = kwargs_source["abs_magnitude"]
@@ -115,7 +113,7 @@ def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
     return kwargs_source
 
 def get_dataclasses(Sim):
-    print("Pixel_num: ",  Sim.numpix)
+    print("Pixel_num: ",  Sim.num_pix)
     print("DeltaPix: ",   np.round(Sim.pixel_scale,3))
     data_class         = Sim.data_class
     psf_class          = Sim.psf_class
@@ -127,14 +125,20 @@ def get_dataclasses(Sim):
 # Model class for parts. #
 ##########################
 # kwargs of ultra-performing band for default simulated images -> quite arbitrary, possibly to improve 
-kwargs_band_sim = {'read_noise': 0, # no RN noise
+
+kwargs_band_sim_camera = {'read_noise': 0, # no RN noise
  'pixel_scale': None,               # to update depending on the lens
  'ccd_gain': 2.5,             # standard gain for HST
- 'exposure_time': 5400.0,     # very long exp time for HST
+                         }
+kwargs_band_sim_obs ={'exposure_time': 5400.0,     # very long exp time for HST
  'sky_brightness': 35,        #"dark" sky
  'magnitude_zero_point': 30,  # very deep 
  'num_exposures': 4,          # standard HST n exp.
  'psf_type': 'NONE'}          # "infinite" psf resolution 
+
+# band used to simulate the True images
+band_true = BasicBand(kwargs_camera=kwargs_band_sim_camera,
+                     kwargs_obs=kwargs_band_sim_obs)
 
 kw_prior_z_source_minimal = {"z_source_max":conf.z_source_max}
 kw_prior_z_source_stnd    = kw_prior_z_source_zl|kw_prior_z_source_minimal
@@ -309,13 +313,12 @@ def kw_prior2like_zs(kw_prior_z_source,z_lens):
         # wrapper funct. to fix the z_lens
         def like_func_zs(z_source,*args):
             f_lkl_pr = kw_prior_z_source["f_lkl_z_source"]
-            return f_lkl_pr(z_source=z_source,z_lens=z_lens,*args)
+            assert args == () # needs no other arguments or it breaks
+            return f_lkl_pr(z_source=z_source,z_lens=z_lens)
         kw_like_zs["like_func"] = like_func_zs
         kw_like_zs["like_prms"] = kw_prior_z_source.get("prms_lkl_z_source",[]) 
         return kw_like_zs
     elif "fixed_z_source" in prior_keys:
-        def lkl(zs,*args):
-            return 0 
         kw_like_zs = {"fixed":kw_prior_z_source["fixed_z_source"]}
     return kw_like_zs
         
@@ -337,8 +340,8 @@ def ReadLens(aClass,verbose=True):
     return LoadLens(aClass.pkl_path,verbose=verbose)
 
 
-def get_extents(arcXkpc,_radec=None):
-    """Returns the extent of the image in various units
+def get_extents(arcXkpc,_radec):
+    """Returns the extent of the coordinate grid in various units
     """
     _ra,_dec = _radec
     RA,DEC   = util.array2image(_ra),util.array2image(_dec)
@@ -370,11 +373,33 @@ def get_RADEC(_radec):
     RA,DEC   = util.array2image(_ra),util.array2image(_dec)
     return RA,DEC
 
+# Obsolete
+"""
+def get_xy_indexes(ref_x,ref_y, x, y):
+    ref_x = np.atleast_1d(np.asarray(ref_x, dtype=np.float64))
+    ref_y = np.atleast_1d(np.asarray(ref_y, dtype=np.float64))
+    x = np.atleast_1d(np.asarray(x, dtype=np.float64))
+    y = np.atleast_1d(np.asarray(y, dtype=np.float64))
+    if len(ref_x.shape)==2:
+        ref_x = ref_x[0]
+        ref_y = ref_y[:,0]
+    index_x = find_index(x.ravel(), ref_x)
+    index_y = find_index(y.ravel(), ref_y)
+    xy_indexes = np.stack([index_y, index_x], -1).T
+    return xy_indexes
 
+
+def interp_map(map,map_x,map_y,x,y):
+    if isinstance(map, (tuple, list)):
+        return type(map)(interp_map(map_i,map_x,map_y,x,y) for map_i in map)
+    xy_indexes = get_xy_indexes(ref_x=map_x,ref_y=map_y,x=x,y=y)
+    int_map    = map_coordinates(map, xy_indexes, order=3, mode="nearest")
+    return int_map
+"""
 class BasicLensPart(BasicGal):
     _large_attributes_unpack = []
     _large_attributes_setup  = []
-
+    _attributes_not_to_store = ["_radec","_radec_padd"]
     def __init__(self,
                  Galaxy,      # class instance of PartGal
                  projection_index, # projection index
@@ -383,6 +408,7 @@ class BasicLensPart(BasicGal):
                  pixel_num=conf.pixel_num, # number of pixels
                  min_thetaE = conf.min_thetaE, # minimum theta observable
                  scale_tE = conf.scale_tE,     # rescaling of theta E to get radius (ie size of image cutout) = tE*scale_tE 
+                 padding = conf.padding, # scale the grid where the lensing computation is done
                  reload=True # reload previous instance
                  ):
 
@@ -419,6 +445,11 @@ class BasicLensPart(BasicGal):
                                               z_lens=self.z_lens)
         self.min_thetaE        = ensure_unit(min_thetaE,u.arcsec) #arcsec
         self.scale_tE          = scale_tE
+        # Padding 
+        assert padding>0
+        self.pad_pix           = int(np.ceil(padding*pixel_num/2))
+        self.pixel_num_padd    = int(self.pixel_num + 2*self.pad_pix)
+        self.padding           = (self.pixel_num_padd- self.pixel_num) /self.pixel_num
 
     def __str__(self): 
         """Human-readable identifier.
@@ -432,17 +463,6 @@ class BasicLensPart(BasicGal):
         # define name and path of savefile
         name= f"Lens_{self.Gal_name}_Prj{self.proj_index}"
         return name
-        
-    def get_kw_sublenspart(self):
-        kw_sublenspart = {}
-        kw_sublenspart["Galaxy"] = self.Gal
-        kw_sublenspart["reload"] = self.reload
-        kw_sublenspart["pixel_num"] = self.pixel_num
-        kw_sublenspart["min_thetaE"] = self.min_thetaE
-        kw_sublenspart["kwlens_part"] = self.kwlens_part
-        kw_sublenspart["projection_index"] = self.proj_index
-        kw_sublenspart["kw_prior_z_source"] = self.kw_prior_z_source
-        return kw_sublenspart
 
     def ReadClass(self,cl):
         L = ReadLens(cl)
@@ -479,13 +499,12 @@ class BasicLensPart(BasicGal):
         print("Unpacking basic lens...")
         # Gal & cosmo
         self._unpack_Gal()
-        
         # re-define PartLens
         self._unpack_PartLens()
 
     def _setup(self):
         self._unpack_Gal()
-        self.PartLens = PartLens(self.kwlens_part)
+        self._unpack_PartLens() # also constructing it if needed
         
     def store(self):
         store_lens(self)
@@ -504,37 +523,74 @@ class BasicLensPart(BasicGal):
         Diam_arcsec = 2*self.radius #diameter in arcsec
         deltaPix    = Diam_arcsec/self.pixel_num # ''/pix
         return deltaPix
-        
     #
     # Coordinates 
     # 
-    @property
+    @cached_property
     def _radec(self):
-        return util.make_grid(self.pixel_num,to_dimless(self.deltaPix))
-
+        #return util.make_grid(self.pixel_num,to_dimless(self.deltaPix))
+        # obtain this from cropping _radec_padd: pixel identical
+        ra, dec = self._radec_padd
+        crop = lambda a: util.image2array(self._crop_padd(util.array2image(a)))
+        return crop(ra), crop(dec)
+        
+    @cached_property
+    def _radec_padd(self):
+        return util.make_grid(self.pixel_num_padd,to_dimless(self.deltaPix))
+        
+        
     @property
     def kw_extents(self):
         kw_extents = get_extents(arcXkpc=self.arcXkpc,
                                      _radec=self._radec)
         return kw_extents
+
+    @property
+    def kw_extents_padd(self):
+        kw_extents = get_extents(arcXkpc=self.arcXkpc,
+                                     _radec=self._radec_padd)
+        return kw_extents
         
     def get_RADEC(self):
         return get_RADEC(self._radec)
+    
+    def get_RADEC_padd(self):
+        return get_RADEC(self._radec_padd)
     #
     # Lensing computations
     #
     @cached_property
+    def alpha_map_padd(self):
+        return self._alpha_map(_radec=self._radec_padd)
+    @cached_property
+    def kappa_map_padd(self):
+        return self._kappa_map(_radec=self._radec_padd)
+    @cached_property
+    def hessian_map_padd(self):
+        return self._hessian(_radec=self._radec_padd)
+    @cached_property
+    def psi_map_padd(self):
+        return self._psi_map(_radec=self._radec_padd)
+        
+    def _crop_padd(self, m):
+        if isinstance(m, (tuple, list)):
+            return type(m)(self._crop_padd(x) for x in m)
+        n = self.pad_pix
+        return m[n:m.shape[0] - n, n:m.shape[1] - n] # n=0 safe (m[0:-0] would be empty)
+ 
+    @property
     def alpha_map(self):
-        return self._alpha_map(_radec=None)
-    @cached_property
+        return self._crop_padd(self.alpha_map_padd)
+    @property
     def kappa_map(self):
-        return self._kappa_map(_radec=None)
-    @cached_property
-    def hessian(self):
-        return self._hessian(_radec=None)
-    @cached_property
+        return self._crop_padd(self.kappa_map_padd)
+    @property
     def psi_map(self):
-        return self._psi_map(_radec=None)
+        return self._crop_padd(self.psi_map_padd)
+    @property
+    def hessian_map(self):
+        return self._crop_padd(self.hessian_map_padd)
+
 
     def sample_z_source(self,z_source_min,z_source_max):
         # this is here to allow modularity 
@@ -587,7 +643,7 @@ class BasicLensPart(BasicGal):
                                         sample_z_source=self.sample_z_source,
                                         min_thetaE=self.min_thetaE,
                                         arcXkpc=self.arcXkpc,verbose=verbose,
-                                        reload=not recompute,
+                                        reload=False, # if it gets here, it has to be reloaded
                                        **kwargs_proj)
         # store results
         assert self.proj_index == kwres_proj_res["proj_index"]

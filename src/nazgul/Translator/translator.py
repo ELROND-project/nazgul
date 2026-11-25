@@ -6,11 +6,10 @@ from importlib import import_module
 from python_tools.get_res import LoadClass
 from python_tools.get_res import load_whatever
 
-from nazgul.pathfinder import std_data_dir,path_nazgul
+from nazgul.std_path import std_data_dir,path_nazgul
 # allowed simulations suites
 from nazgul.configurations import SimSuiteNames,min_z,max_z,min_mass
 from nazgul.Translator import std_simsuite,std_sim
-from nazgul.pathfinder import get_part_dir,get_gal_dir
 from nazgul.basic_gal import store_class
 
 def check_simsuite(simsuite):
@@ -60,6 +59,10 @@ def get_rnd_kw_gal(simsuite=std_simsuite,sim=std_sim,subsim=None,
                                 min_mass=min_mass,max_z=max_z,min_z=min_z)
     return kw
 
+def standardise_snap(simsuite,snap,*args,**kwargs):
+    standardise_snap = get_sim_func(simsuite,"standardise_snap")
+    return standardise_snap(snap=snap,*args,**kwargs)
+    
 def get_z_snap(simsuite,z=None,snap=None,*args,**kwargs):
     get_z_snap = get_sim_func(simsuite,"get_z_snap")
     return get_z_snap(z=z,snap=snap,*args,**kwargs)

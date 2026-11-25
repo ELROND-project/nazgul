@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.plot_PL import plot_kappamap
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model,get_lens_mask
 from nazgul.Modelling.lib_models import model_res_base
-from nazgul.mount_doom.cracks_of_doom import kwargs_source_default,get_kwargs_sourceSim
+from nazgul.MountDoom.cracks_of_doom import kwargs_source_default,get_kwargs_sourceSim
 from nazgul.plot_image_pair import _limits,plot_image_pairs_pdf
 from python_tools.get_res import load_whatever
 

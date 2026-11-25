@@ -8,13 +8,12 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from importlib import import_module
 from scipy.optimize import curve_fit
 from chainconsumer import Chain, ChainConsumer
 
 from python_tools.get_res import load_whatever
 from nazgul.lib_plot import warm_colors as warm
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.plot_AMRxpart import get_kw_1D_density,get_savedir_plots
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.combined_modelling_results import get_full_chain,get_res_dir,get_model_from_res_dir

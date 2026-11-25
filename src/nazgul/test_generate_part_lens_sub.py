@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
-from nazgul.mount_doom.generate_particle_lens_sub import SubLensPart
+from nazgul.MountDoom.generate_particle_lens_sub import SubLensPart
 from nazgul.configurations import pixel_num,min_thetaE
-from nazgul.mount_doom.cracks_of_doom import kw_prior_z_source_stnd
+from nazgul.MountDoom.cracks_of_doom import kw_prior_z_source_stnd
 
 from nazgul.Translator.translator import PartGal
 

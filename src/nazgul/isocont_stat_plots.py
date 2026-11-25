@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 from matplotlib.backends.backend_pdf import PdfPages
 
 from python_tools.get_res import load_whatever
@@ -210,9 +211,139 @@ def plot_isophote_results(map_type,kwargs_list, pdf_path="tmp/isophote_results.p
 
     return pdf_path    
 
+from nazgul.fit_iso_ell import rescale_pot,rescale_kappa
+
+def psi_rad_cored(x,x_core,psi_0,gamma,s):
+    """
+    From Pierre's model in
+    https://github.com/ELROND-project/nazgul/blob/main/src/nazgul/output_analysis/radial%20profiles/modelling_COLIBRE_cores.ipynb
+        
+    $\psi(x) = \psi_0 \left[1 + (x/x_{\rm c})^s\right]^{\frac{3-\gamma}{s}} $ 
+    
+    """
+    x = np.asarray(x)
+    X = (x/x_core)**s
+    PW = (3-gamma)/s
+    # add a shift so that it's 0 at 0 
+    # (gauge freedom of potential and it's easier for me)
+    return psi_0 * ((1+X)**PW)- psi_0
+
+
+
+def kappabar_model(x, x_core, sharpness, outer_slope):
+    """
+    from 
+    https://github.com/ELROND-project/nazgul/blob/main/src/nazgul/output_analysis/radial%20profiles/modelling_COLIBRE_cores.ipynb
+    
+    Empirical model for kappabar. The normalisation N ensures that kappabar(x=1) = 1,
+    that is at the Einstein radius.
+    x_core is the core size
+    outer_slope is the outer power-law index
+    sharpness is the sharpness of the core-to-power-law transition
+    """
+    
+    N = (1 + (1/x_core)**sharpness)**((outer_slope-1)/sharpness)
+    kappabar = N / (1 + (x/x_core)**sharpness)**((outer_slope-1)/sharpness)
+    
+    return kappabar
+
+
+
+def fit_isofit(lens,isotype="psi",fitting_function=None):
+    """
+    Run a fit on the 
+    """
+    pth_lensdir = lens.pkl_path.parent
+    nm_kw_iso = f"kw_res_iso{isotype}_prj{lens.proj_index}.dll"
+    iso_file = [g for g in pth_lensdir.glob(nm_kw_iso)]
+    assert len(iso_file)==1
+    iso_data = load_whatever(iso_file[0])
+    isofit_2norm = iso_data["isofit"]["isolist"].intens[1:]
+    sma_isofit   = iso_data["isofit"]["isolist"].sma[1:]
+
+    if isotype=="psi":
+        if fitting_function is None:
+            fitting_function = psi_rad_cored
+        isofit = rescale_pot(isofit_2norm)
+        # we fit it
+        min_prms = [1e-2, -10, 1.,1] # prms: x_core,psi_0,gamma,s
+        max_prms = [3,10,3,3.5]
+        
+    elif isotype == "dens":
+        if fitting_function is None:
+            fitting_function = kappabar_model
+        # rescale_kappa is log10 (the other effects are not that importants?)
+        isofit   = 10**isofit_2norm
+        min_prms = [1e-2, 0.5, 0.5],
+        max_prms =  [10, 20, 4]
+    else:
+        raise RuntimeError(f"Isotype must be either dens or psi, not {isodens}")
+    
+    bounds = (min_prms,max_prms)
+    RE_pix     = lens.thetaE.value/lens.deltaPix.value
+    r_scale_tE = sma_isofit/RE_pix
+
+    # exctract the parameter names of a function
+    param_fnct_names = fitting_function.__code__.co_varnames[:fitting_function.__code__.co_argcount]
+    # we discard the "x" param name
+    param_fnct_names = param_fnct_names[1:]
+    
+    popt, pcov = curve_fit(fitting_function, r_scale_tE, isofit, bounds=bounds)
+    kw_popt = {}
+    for i in range(len(popt)):
+        kw_popt[param_fnct_names[i]] = popt[i]
+        
+    fit_isofit = fitting_function(r_scale_tE,**kw_popt) # or fitting_function(r_scale_tE,*popt)
+    kw_res = {"isotype":isotype,
+              "isofit":isofit,
+              "kw_popt":kw_popt,
+              "fit_isofit":fit_isofit,
+              "fitting_function.__name__":fitting_function.__name__,
+              "r_scale_tE":r_scale_tE}
+    return kw_res
+
+def plot_fit_iso(lens,isotype="psi",fitting_function=None):
+    kw_res = fit_isofit(lens=lens,isotype=isotype,fitting_function=fitting_function)
+    return _plot_fit_iso(kw_res)
+
+def _plot_fit_iso(kw_res_fit,ax=None):
+    isotype = kw_res_fit["isotype"]
+    r_scale_tE = kw_res_fit["r_scale_tE"]
+    isofit = kw_res_fit["isofit"]
+    fit_isofit = kw_res_fit["fit_isofit"]
+    if ax is None:
+        fig,ax = plt.subplots()
+        fig.suptitle(_pretty_iso_name(isotype)+" fit")
+    else:
+        ax.set_title(_pretty_iso_name(isotype)+" fit")
+    ax.scatter(r_scale_tE,isofit,marker="x",label="Isocontours",c="b")
+    ax.plot(r_scale_tE,fit_isofit,label="Fit",c="r")
+    try:
+        core = kw_res_fit["kw_popt"]["x_core"]
+        ax.axvline(core,ls="--",c="k",label=r"$\theta_{\rm{core}}/\theta_{\rm{E}}$="+str(np.round(core,2)))
+    except:
+        pass
+    ax.set_xlabel(r"log$_{10}(\theta/\theta_E$)")
+    ax.set_ylabel(r"log$_{10}$"+_pretty_iso_name(isotype))
+    ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.legend()
+    # ugly but works
+    try:
+        return fig
+    except:
+        return ax
+
 kw_name_map = {"psi":r"$\psi$",
                "kappa": r"$\kappa$"}
 
+def _pretty_iso_name(isotype):
+    assert isotype in ["psi","dens"]
+    if isotype=="psi":
+        return kw_name_map[isotype]
+    elif isotype=="dens":
+        return kw_name_map["kappa"]
+        
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Study statistic of isocontours (kappa and psi) of lenses")
     parser.add_argument('-snap','--snap',nargs="+",dest="snaps",default=[],help=f"List of snaps to consider - default is all")

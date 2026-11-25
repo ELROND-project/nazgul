@@ -20,14 +20,14 @@ from python_tools.get_res import load_whatever
 
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
-from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
-from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.MountDoom.cracks_of_doom import LoadLens,get_extents
+from nazgul.MountDoom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 from nazgul.stat_lenses import get_all_gallens
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.pathfinder import get_sim_dir,tmp_dir
-from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std,get_res_dir # default values
+from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
