@@ -197,7 +197,8 @@ class SimPartGal(BasicPartGal):
     # property itself -- hasattr() on a property always succeeds (it just runs the
     # getter), so listing "swift_gal" here made every _needs_setup() check
     # silently trigger a full reload as a side effect.
-    _large_attributes_setup = ["_swift_gal", "stars", "gas", "dark_matter", "black_holes"]
+    _large_attributes_setup = ["_swift_gal", "stars", "gas", "dark_matter", "black_holes",
+                               "star_luminosities"]
     _large_attributes_unpack = []
 
     simsuite = simsuite_name
@@ -211,6 +212,14 @@ class SimPartGal(BasicPartGal):
         # black holes: dynamical mass is used rather than particle mass
         "black_holes": dict(count_attr="N_bh",    mass_attr="M_bh",    mass_field="dynamical_masses"),
     }
+
+    # Rest-frame dust-free AB luminosities of the star particles, computed by
+    # SWIFT at runtime from BC03 (GALAXEV) and written to the snapshot as the
+    # "Luminosities" named columns, already divided by 3631 Jy (i.e. maggies;
+    # SWIFT src/stars/EAGLE/stars_io.h). Not every run is written with them:
+    # missing columns are skipped with a warning.
+    _LUM_BANDS = ("GAMA_u", "GAMA_g", "GAMA_r", "GAMA_i", "GAMA_z",
+                  "GAMA_Y", "GAMA_J", "GAMA_H", "GAMA_K")
 
     def __init__(self, kw_Gal, sim=std_sim, subsim=std_subsim):
         # kw_Gal: soap_index, and either snap or z
@@ -312,9 +321,39 @@ class SimPartGal(BasicPartGal):
             self.N_part = sum(getattr(self, cnfg["count_attr"]) for cnfg in self._SPECIES_CONFIG.values())
         if not hasattr(self, "M"):
             self.M = sum(getattr(self, cnfg["mass_attr"]) for cnfg in self._SPECIES_CONFIG.values())
+        self.initialise_luminosities()
         # cache cosmology so pickles loaded without COSMA can still return it
         self._cosmo_cache = sg.metadata.cosmology
         return 0
+
+    def initialise_luminosities(self, bands=None):
+        """Load the per-star-particle GAMA-band luminosities into
+        ``self.star_luminosities`` (dict band -> swiftsimio array, rest-frame
+        dust-free maggies, aligned with ``self.stars``).
+
+        Idempotent: bands already loaded are left untouched; bands the
+        snapshot does not carry are skipped with a warning.
+        """
+        if not hasattr(self, "star_luminosities"):
+            self.star_luminosities = {}
+        if not hasattr(self, "_lum_bands_tried"):
+            # bands already attempted, so missing ones warn only once
+            self._lum_bands_tried = set()
+        lums = getattr(self.stars, "luminosities", None)
+        if lums is None:
+            if not self._lum_bands_tried:
+                warnings.warn(f"{self.name}: snapshot has no stars.luminosities; skipped")
+                self._lum_bands_tried.update(self._LUM_BANDS)
+            return self.star_luminosities
+        for band in (bands or self._LUM_BANDS):
+            if band in self.star_luminosities or band in self._lum_bands_tried:
+                continue
+            self._lum_bands_tried.add(band)
+            try:
+                self.star_luminosities[band] = getattr(lums, band)
+            except AttributeError:
+                warnings.warn(f"{self.name}: no stars.luminosities column {band!r}; skipped")
+        return self.star_luminosities
 
     # ------------------------------------------------------------------
     # Class structure
