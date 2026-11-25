@@ -14,6 +14,7 @@ from python_tools.tools import mkdir,ensure_unit
 from python_tools.get_res import LoadClass,load_whatever
 
 from nazgul.pathfinder import get_gal_dir,path_nazgul
+from nazgul.luminosities import GAMA_LUM_BANDS,read_star_luminosities
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
 from nazgul.Translator.COLIBRE import simsuite_name,simsuite_short_name,part_type_list,check_part_type
 
@@ -213,13 +214,9 @@ class SimPartGal(BasicPartGal):
         "black_holes": dict(count_attr="N_bh",    mass_attr="M_bh",    mass_field="dynamical_masses"),
     }
 
-    # Rest-frame dust-free AB luminosities of the star particles, computed by
-    # SWIFT at runtime from BC03 (GALAXEV) and written to the snapshot as the
-    # "Luminosities" named columns, already divided by 3631 Jy (i.e. maggies;
-    # SWIFT src/stars/EAGLE/stars_io.h). Not every run is written with them:
-    # missing columns are skipped with a warning.
-    _LUM_BANDS = ("GAMA_u", "GAMA_g", "GAMA_r", "GAMA_i", "GAMA_z",
-                  "GAMA_Y", "GAMA_J", "GAMA_H", "GAMA_K")
+    # GAMA-band rest-frame dust-free AB luminosities (maggies) of the star
+    # particles; see nazgul.luminosities. Not every run is written with them.
+    _LUM_BANDS = GAMA_LUM_BANDS
 
     def __init__(self, kw_Gal, sim=std_sim, subsim=std_subsim):
         # kw_Gal: soap_index, and either snap or z
@@ -331,28 +328,20 @@ class SimPartGal(BasicPartGal):
         ``self.star_luminosities`` (dict band -> swiftsimio array, rest-frame
         dust-free maggies, aligned with ``self.stars``).
 
-        Idempotent: bands already loaded are left untouched; bands the
-        snapshot does not carry are skipped with a warning.
+        Idempotent: bands already loaded or already attempted are left
+        untouched, so missing columns warn only once.
         """
         if not hasattr(self, "star_luminosities"):
             self.star_luminosities = {}
         if not hasattr(self, "_lum_bands_tried"):
-            # bands already attempted, so missing ones warn only once
             self._lum_bands_tried = set()
-        lums = getattr(self.stars, "luminosities", None)
-        if lums is None:
-            if not self._lum_bands_tried:
-                warnings.warn(f"{self.name}: snapshot has no stars.luminosities; skipped")
-                self._lum_bands_tried.update(self._LUM_BANDS)
+        wanted = [b for b in (bands or self._LUM_BANDS)
+                  if b not in self.star_luminosities and b not in self._lum_bands_tried]
+        if not wanted:
             return self.star_luminosities
-        for band in (bands or self._LUM_BANDS):
-            if band in self.star_luminosities or band in self._lum_bands_tried:
-                continue
-            self._lum_bands_tried.add(band)
-            try:
-                self.star_luminosities[band] = getattr(lums, band)
-            except AttributeError:
-                warnings.warn(f"{self.name}: no stars.luminosities column {band!r}; skipped")
+        self._lum_bands_tried.update(wanted)
+        self.star_luminosities.update(
+            read_star_luminosities(self.stars, bands=wanted, name=self.name))
         return self.star_luminosities
 
     # ------------------------------------------------------------------
