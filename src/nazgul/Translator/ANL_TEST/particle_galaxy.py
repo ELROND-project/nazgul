@@ -75,7 +75,6 @@ def sample_SIE(n_smpl=n_smpl,
     y_ell = DECs_sis * q_ell
     rot_m = np.array([[np.cos(phi_ell),-np.sin(phi_ell)],
                       [np.sin(phi_ell),np.cos(phi_ell)]])
-    x,y = np.dot(np.array([x_ell,y_ell]).T,rot_m).T
     x =  np.cos(phi_ell) * x_ell - np.sin(phi_ell) * y_ell
     y =  np.sin(phi_ell) * x_ell + np.cos(phi_ell) * y_ell
 
@@ -152,8 +151,7 @@ def get_all_SPG(**kw_galpart):
 class SimPartGal(BasicPartGal):
     _large_attributes_setup  = ["samples"]
     _large_attributes_unpack = []
-    # Fix random seed to obtain always the same sample
-    np.random.seed(0)
+
 
     # fix all cosmo params
     cosmo    = default_cosmo
@@ -190,8 +188,11 @@ class SimPartGal(BasicPartGal):
     @property
     def kwargs_gal(self):
         kwargs_gal = {"theta_E":self.theta_E,
-                            "n_smpl":self.n_smpl,
-                            "profile":self.profile}
+                        "n_smpl":self.n_smpl,
+                        "profile":self.profile,
+                        "z_source":self.z_source,
+                        "z_lens":self.z_lens,
+                        "cosmo":self.cosmo}
         if self.profile=="SIE":
             kwargs_gal["e1"] =self.e1
             kwargs_gal["e2"] =self.e2
@@ -210,6 +211,8 @@ class SimPartGal(BasicPartGal):
         return str_gal
 
     def run(self,reload=False,verbose=True):
+        # Fix random seed to obtain always the same sample
+        np.random.seed(0)
         if self.profile =="SIS":
             self.kwargs_lens,self.Mscale_sun,self.samples = sample_SIS(n_smpl=self.n_smpl,
                                                                   theta_E = self.theta_E,

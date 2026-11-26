@@ -37,7 +37,7 @@ gauss_tE_prior = True
 overwrite_results = True
 check_if_workin_on_it = False
 
-res_dir_base      = model_res_base/"testSIS_fODoO_hack2_1_mvS_LargerGamma/"
+res_dir_base      = model_res_base/"testSIS_fODoO_hack21_mvS_LG_ExtShear/"
 mkdir(res_dir_base)
 
 description_model = "Try to model a single SIS w LOS, and model the lens with EPL +LOS minimal (with free gamma OD and omega LOS), and an elliptical sersic source - now with fixed lens pos - and Optimistic Observation (def. lnstr. HST band) - hacked II: use lenstronomy to produce the image, not nazgul - now without any ref. to nazgul - and move the source. Now w. Larger Gamma LOS values. Now sim. gamma od/ds = 0, so it's basically==ext shear"
