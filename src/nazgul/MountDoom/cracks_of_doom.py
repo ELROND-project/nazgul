@@ -601,7 +601,9 @@ class BasicLensPart(BasicGal):
             # if fixed, we don't sample it
             z_source = self.kw_like_zs["fixed"]
             # ensure it is still acceptable
-            assert z_source>=z_source_min and z_source<z_source_max
+            if not (z_source>=z_source_min and z_source<z_source_max):
+                err_txt = f"The given fixed z_source {z_source} is not within z_source_min/max: {np.round(z_source_min,3)} - {z_source_max}"
+                raise RuntimeError(err_txt)
         else:
             # else we follow the given likelihood
             Lkl_source = Likelihood(var_range=[[z_source_min,z_source_max]],

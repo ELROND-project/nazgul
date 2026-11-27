@@ -18,15 +18,50 @@ cnty     = 0
 q,phi    = .3,0
 e1,e2    = phi_q2_ellipticity(phi=phi,q=q)
 
+
+def sample_1part(theta_E=theta_E,
+                z_lens=z_lens,
+                z_source=z_source,
+                cosmo=default_cosmo,
+                cntx=cntx,cnty=cnty,
+                rnd_seed=42
+                ):
+    # A single point mass
+    RAs          =  [cntx]
+    DECs         =  [cnty]
+    samples_arcs = np.array([RAs,DECs])*u.arcsec
+
+    arcXkpc      = cosmo.arcsec_per_kpc_proper(z_lens) # ''/kpc
+    samples      = samples_arcs/arcXkpc # kpc
+
+    # theta_E must be connected to the mass scale, as it only scales up and down the kappa
+    kwargs_lens_PM  = [{'theta_E' : to_dimless(theta_E), 
+                        'center_x': cntx, 
+                        'center_y': cnty}] 
+
+    
+    # note the discussion on Notion: SIS sampling:easy!
+    Sigma_Crit_arcs2 = SigCrArc2(cosmo=cosmo,z_lens=z_lens,z_source=z_source)
+
+    M_pm     = Sigma_Crit_arcs2 *np.pi*(ensure_unit(theta_E,u.arcsec)**2)
+    M_pm_sun = M_pm.to("Msun")
+
+    M_pm_sun = ensure_unit(M_pm_sun,u.Msun)
+
+    return kwargs_lens_PM,M_pm_sun,samples
+    
 def sample_SIS(n_smpl=n_smpl,
                 theta_E=theta_E,
                 z_lens=z_lens,
                 z_source=z_source,
                 theta_max=None,
                 cosmo=default_cosmo,
-                cntx=cntx,cnty=cnty):
+                cntx=cntx,cnty=cnty,
+                rnd_seed=42):
     if theta_max is None:
         theta_max = 4*theta_E
+    # fix rnd seed for reproducibility
+    np.random.seed(rnd_seed)
     phi,theta    = np.random.uniform([0,0],[2*np.pi,to_dimless(theta_max)],size=(n_smpl,2)).T
     RAs          = theta*np.cos(phi) +cntx
     DECs         = theta*np.sin(phi) +cnty
@@ -57,13 +92,17 @@ def sample_SIE(n_smpl=n_smpl,
                 theta_max=None,
                 cosmo=default_cosmo,
                 cntx=cntx,cnty=cnty,
-                e1=e1,e2=e2):
+                e1=e1,e2=e2,
+                rnd_seed=42):
     """
     Sample a SIE distribution with particles with the same mass and returns inputs for Translator 
     """
+    
     phi_ell,q_ell = ellipticity2phi_q(e1,e2)
     if theta_max is None:
         theta_max = 4*theta_E/q_ell
+    # fix rnd seed for reproducibility
+    np.random.seed(rnd_seed)
     phi,theta    = np.random.uniform([0,0],[2*np.pi,to_dimless(theta_max)],size=(n_smpl,2)).T
     RAs_sis       = theta*np.cos(phi) 
     DECs_sis      = theta*np.sin(phi)
@@ -155,26 +194,28 @@ class SimPartGal(BasicPartGal):
 
     # fix all cosmo params
     cosmo    = default_cosmo
-    z_source = z_source
     snap     = 0
     
-    def __init__(self,sim=sim[0],n_smpl=n_smpl,theta_E=theta_E,z_lens=z_lens,e1=None,e2=None):
+    def __init__(self,sim=sim[0],n_smpl=n_smpl,theta_E=theta_E,z_lens=z_lens,z_source=z_source,rnd_seed=42,
+                 e1=None,e2=None):
         #cosmo=default_cosmo,z_lens=z_lens,z_source=z_source
-        self.n_smpl  = int(n_smpl)
-        self.theta_E = theta_E
-        self.profile = sim
-        self.sim     = sim
+        self.n_smpl   = int(n_smpl)
+        self.theta_E  = theta_E
+        self.profile  = sim
+        self.sim      = sim
         if self.profile=="SIE":
-            self.e1  = e1
-            self.e2  = e2
-        self.gal_dir = get_gal_dir(kw_gal=self.kwargs_gal,
+            self.e1   = e1
+            self.e2   = e2
+        self.z_lens   = z_lens
+        self.z_source = z_source
+        self.z        = z_lens
+        self.rnd_seed = rnd_seed
+        self.gal_dir  = get_gal_dir(kw_gal=self.kwargs_gal,
                                    snap=self.snap,
                                    sim=self.sim,
                                    subsim=None,
                                    simsuite=simsuite_name)
         mkdir(self.gal_dir)
-        self.z_lens  = z_lens
-        self.z       = z_lens
 
         self.N_part = n_smpl
         
@@ -192,6 +233,7 @@ class SimPartGal(BasicPartGal):
                         "profile":self.profile,
                         "z_source":self.z_source,
                         "z_lens":self.z_lens,
+                        "rnd_seed":self.rnd_seed,
                         "cosmo":self.cosmo}
         if self.profile=="SIE":
             kwargs_gal["e1"] =self.e1
@@ -211,21 +253,29 @@ class SimPartGal(BasicPartGal):
         return str_gal
 
     def run(self,reload=False,verbose=True):
-        # Fix random seed to obtain always the same sample
-        np.random.seed(0)
         if self.profile =="SIS":
             self.kwargs_lens,self.Mscale_sun,self.samples = sample_SIS(n_smpl=self.n_smpl,
                                                                   theta_E = self.theta_E,
                                                                   z_lens = self.z_lens,
-                                                                  z_source = self.z_source)
+                                                                  z_source = self.z_source,
+                                                                  rnd_seed=self.rnd_seed)
         elif self.profile=="SIE":
             self.kwargs_lens,self.Mscale_sun,self.samples = sample_SIE(n_smpl=self.n_smpl,
                                                                   theta_E = self.theta_E,
                                                                   z_lens = self.z_lens,
                                                                   z_source = self.z_source,
                                                                   e1 = self.e1,
-                                                                  e2 = self.e2)
+                                                                  e2 = self.e2,
+                                                                  rnd_seed=self.rnd_seed)
+        elif self.profile=="PM":
+            self.n_smpl = 1
+            self.N_part = 1
+            self.kwargs_lens,self.Mscale_sun,self.samples = sample_1part(theta_E = self.theta_E,
+                                                                  z_lens = self.z_lens,
+                                                                  z_source = self.z_source,
+                                                                  rnd_seed=self.rnd_seed)
         self.M_tot  = self.n_smpl*self.Mscale_sun
+        
     def store_gal(self,update=True):
         # store class instance 
         store_class(self,path=self.dill_path_abs(),update=update)

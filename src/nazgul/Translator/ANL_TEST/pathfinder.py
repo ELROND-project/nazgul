@@ -12,7 +12,7 @@ def get_galname(kw_gal,**kwargs):
             kw_add[k] = kw_gal[k]
 
     hash_kwg = "_"+to_uid_base64(kw_add)
-    if prof == "SIS":
+    if prof == "SIS" or prof=="PM":
         return galname+hash_kwg
     elif prof == "SIE":
         galname += f"_e1{kw_gal['e1']}_e2{kw_gal['e2']}"
